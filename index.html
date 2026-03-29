@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>运动全能王</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+    <style>
+        body { background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .app-container { max-width: 500px; margin: 0 auto; min-height: 100vh; background-color: #f9fafb; box-shadow: 0 0 20px rgba(0,0,0,0.03); }
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+        /* 1. 🌟 核心修复：强制图表容器有最小高度，防止高度塌陷 */
+        #chart-container { min-height: 180px; width: 100%; }
+
+        .rank-1 { background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 2px solid #fbbf24; }
+        .rank-2 { border-color: #94a3b8; }
+        .rank-3 { border-color: #b45309; }
+
+        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.2); } 50% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.6); } }
+        .timer-running { animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; border-color: #3b82f6 !important; }
+
+        @keyframes heartBeat { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+        .like-animate { animation: heartBeat 0.3s ease-in-out; color: #ef4444; }
+        .theme-transition { transition: all 0.3s ease; }
+    </style>
+</head>
+<body>
+    <div id="app" class="app-container relative pb-10">
+        <div :class="activeTab === 'plank' ? 'bg-blue-600' : 'bg-green-500'" class="h-2 w-full theme-transition"></div>
+
+        <div class="p-6">
+            <div v-if="token" class="flex bg-gray-100 rounded-xl p-1 mb-6 shadow-inner">
+                <button @click="activeTab = 'plank'" :class="activeTab === 'plank' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-gray-500 font-medium'" class="flex-1 py-3 rounded-lg theme-transition flex items-center justify-center gap-2">
+                    💪 平板支撑
+                </button>
+                <button @click="activeTab = 'run'" :class="activeTab === 'run' ? 'bg-white text-green-600 shadow-sm font-bold' : 'text-gray-500 font-medium'" class="flex-1 py-3 rounded-lg theme-transition flex items-center justify-center gap-2">
+                    🏃‍♂️ 户外跑步
+                </button>
+            </div>
+
+            <h1 v-else class="text-3xl font-extrabold text-center text-gray-900 mb-8 mt-4">💪 运动全能王 🏃‍♂️</h1>
+
+            <div v-if="!token" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+                <h2 class="text-2xl font-bold mb-6 text-gray-800 text-center">{{ isLoginMode ? '欢迎回来' : '创建挑战账号' }}</h2>
+                <div class="space-y-5">
+                    <input v-model="regForm.username" type="text" class="w-full px-5 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="昵称">
+                    <input v-model="regForm.password" type="password" class="w-full px-5 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" placeholder="密码">
+                    <button @click="handleAuth" class="w-full bg-gray-900 text-white font-bold py-4 rounded-xl hover:bg-gray-800 transition shadow-sm">
+                        {{ isLoginMode ? '登 录' : '注 册' }}
+                    </button>
+                    <p v-if="errorMessage" class="text-red-500 text-sm text-center bg-red-50 p-3 rounded-lg">{{ errorMessage }}</p>
+                    <div class="text-center mt-6 pt-5 border-t border-gray-100">
+                        <button @click="toggleMode" class="text-blue-600 font-medium">{{ isLoginMode ? '去注册账号' : '已有账号？登录' }}</button>
+                    </div>
+                </div>
+            </div>
+
+            <div v-else class="space-y-6">
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
+                    <div>
+                        <p class="text-gray-500 text-sm">你好，<span class="font-bold text-gray-900 text-base">{{ currentUser?.username }}</span></p>
+                        <p :class="activeTab === 'plank' ? 'text-blue-600 bg-blue-50' : 'text-green-600 bg-green-50'" class="text-xs font-bold mt-1 inline-block px-2 py-0.5 rounded theme-transition">
+                            个人最高: {{ personalBest }} {{ activeTab === 'plank' ? 's' : 'km' }}
+                        </p>
+                    </div>
+                    <button @click="logout" class="text-xs text-gray-400 border border-gray-200 px-3 py-1.5 rounded-full">退出</button>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                    <h3 class="font-bold text-gray-700 mb-4 text-sm tracking-wide">📈 {{ activeTab === 'plank' ? '近期支撑时长' : '近期跑步里程' }}</h3>
+                    <div id="chart-container" ref="chartRef"></div>
+                </div>
+
+                <div v-if="activeTab === 'plank'" :class="{'timer-running': isTimerRunning}" class="bg-gray-900 rounded-2xl p-6 shadow-xl text-white border-2 border-transparent transition-all duration-300">
+                    <div class="text-center mb-4"><span class="text-gray-400 text-xs font-bold tracking-widest">LIVE TIMER</span></div>
+                    <div class="text-7xl font-black text-center text-blue-400 font-mono mb-8 tracking-tighter">{{ displayTimer }}</div>
+                    <div class="flex gap-3 justify-center mb-5">
+                        <button v-if="!isTimerRunning && timerSeconds === 0" @click="startTimer" class="flex-1 bg-blue-600 text-white font-bold py-3.5 rounded-xl">▶ 开始挑战</button>
+                        <button v-if="isTimerRunning" @click="pauseTimer" class="flex-1 bg-red-500 text-white font-bold py-3.5 rounded-xl">⏸ 暂停</button>
+                        <template v-if="!isTimerRunning && timerSeconds > 0">
+                            <button @click="startTimer" class="flex-1 bg-gray-700 text-white font-bold py-3.5 rounded-xl">继续</button>
+                            <button @click="resetTimer" class="flex-1 bg-gray-800 border border-gray-600 text-gray-300 font-bold py-3.5 rounded-xl">重置</button>
+                        </template>
+                    </div>
+                    <div v-if="!isTimerRunning && timerSeconds > 0" class="pt-4 border-t border-gray-800">
+                        <button @click="useTimerResult" class="w-full bg-blue-500 text-white font-bold py-3.5 rounded-xl shadow-lg">将结果填入打卡单</button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 border-t-4" :class="activeTab === 'plank' ? 'border-t-blue-500' : 'border-t-green-500'">
+                    <h3 class="font-bold text-gray-800 mb-4 text-sm">{{ activeTab === 'plank' ? '录入平板成绩' : '录入跑步距离' }}</h3>
+
+                    <template v-if="activeTab === 'run'">
+                        <div class="flex items-center mb-3 bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
+                            <input v-model="runForm.distance" type="number" step="0.01" class="flex-1 px-4 py-3 text-2xl font-black text-center bg-transparent outline-none" placeholder="距离">
+                            <span class="text-gray-400 font-bold pr-4">km</span>
+                        </div>
+                        <div class="flex items-center mb-3 bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
+                            <input v-model="runForm.duration" type="number" class="flex-1 px-4 py-3 text-2xl font-black text-center bg-transparent outline-none" placeholder="用时">
+                            <span class="text-gray-400 font-bold pr-4">min</span>
+                        </div>
+                    </template>
+                    <template v-else>
+                        <div class="flex items-center mb-3 bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
+                            <input v-model="plankForm.duration" type="number" class="flex-1 px-4 py-3 text-2xl font-black text-center bg-transparent outline-none" placeholder="秒数">
+                            <span class="text-gray-400 font-bold pr-4">秒</span>
+                        </div>
+                    </template>
+
+                    <input v-model="commonNotes" type="text" class="w-full px-4 py-3 border border-gray-200 bg-gray-50 rounded-xl mb-4 text-sm outline-none" placeholder="备注 (选填)">
+                    <button @click="submitRecord" :class="activeTab === 'plank' ? 'bg-gray-900' : 'bg-green-600'" class="w-full text-white font-bold py-4 rounded-xl transition shadow-md">
+                        ⬆️ 确认打卡
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                    <h3 class="font-black text-2xl text-gray-950 mb-6 flex justify-between items-center">
+                        🏆 荣耀榜单
+                    </h3>
+                    <div class="flex bg-gray-100 rounded-lg p-1 mb-6">
+                        <button @click="currentLeaderboardType = '7'" :class="currentLeaderboardType === '7' ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-500'" class="flex-1 text-sm font-bold py-2.5 rounded-md">周榜</button>
+                        <button @click="currentLeaderboardType = '30'" :class="currentLeaderboardType === '30' ? 'bg-white text-gray-950 shadow-sm' : 'text-gray-500'" class="flex-1 text-sm font-bold py-2.5 rounded-md">月榜</button>
+                        <button @click="currentLeaderboardType = 'streak'" :class="currentLeaderboardType === 'streak' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500'" class="flex-1 text-sm font-bold py-2.5 rounded-md flex items-center justify-center gap-1">🔥 连胜榜</button>
+                    </div>
+                    <div class="space-y-4">
+                        <div v-for="(entry, index) in leaderboard" :key="index" :class="getRankClass(index)" class="bg-white p-5 rounded-xl border border-gray-100 flex items-center shadow-sm">
+                            <div class="w-10 h-10 flex items-center justify-center rounded-full mr-4 shrink-0" :class="getRankIconBg(index)">
+                                <span v-if="index > 2" class="text-gray-400 font-bold">#{{ index + 1 }}</span>
+                                <span v-else class="text-2xl">{{ getRankEmoji(index) }}</span>
+                            </div>
+                            <p class="flex-1 text-lg font-bold text-gray-800">{{ entry.username }}</p>
+                            <div class="text-right text-2xl font-black" :class="activeTab === 'plank' ? 'text-gray-900' : 'text-green-600'">
+                                {{ entry.max_value || entry.current_streak }}
+                                <span class="text-xs font-normal text-gray-400 ml-1">
+                                    {{ currentLeaderboardType === 'streak' ? '天' : (activeTab === 'plank' ? 's' : 'km') }}
+                                </span>
+                            </div>
+                        </div>
+                        <div v-if="leaderboard.length === 0" class="text-center text-gray-400 py-10 text-sm italic">暂无霸主，快来打卡！</div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mt-4 mb-10">
+                    <h3 class="font-bold text-gray-800 mb-4 text-sm">📡 全频道动态</h3>
+                    <div class="space-y-4 max-h-96 overflow-y-auto pr-1">
+                        <div v-for="record in records" :key="record.id" class="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex flex-col gap-2">
+                            <div class="flex items-center justify-between">
+                                <span class="font-bold text-gray-800 text-sm">
+                                    {{ record.activity_type === 'plank' ? '💪' : '🏃‍♂️' }} {{ record.owner.username }}
+                                </span>
+                                <span v-if="record.activity_type === 'plank'" class="font-mono font-black text-blue-600">{{ record.duration_seconds }}s</span>
+                                <span v-else class="font-mono font-black text-green-600">{{ record.distance }} km <span class="text-xs font-normal text-gray-400">({{ Math.round(record.duration_seconds/60) }}m)</span></span>
+                            </div>
+                            <div class="flex justify-between items-center text-xs text-gray-400 mt-1">
+                                <span>{{ record.notes || '沉默地打卡' }} · {{ formatTime(record.record_date) }}</span>
+                                <button @click="likeRecord(record.id)" class="flex items-center gap-1.5 transition px-3 py-1.5 rounded-full border bg-white"
+                                        :class="isLikedByMe(record) ? 'text-red-500 border-red-100 like-animate' : 'text-gray-300 border-gray-100'">
+                                    <span>{{ isLikedByMe(record) ? '❤️' : '🤍' }}</span><span class="font-bold">{{ record.likes.length }}</span>
+                                </button>
+                            </div>
+                            <div v-if="record.likes.length > 0" class="mt-1 bg-gray-100/50 p-2 rounded-lg text-[10px] text-gray-500 leading-relaxed">
+                                <span class="text-red-300 mr-1">❤️</span>
+                                <span v-for="(like, i) in record.likes" :key="i" class="font-bold text-gray-600">{{ like.user.username }}{{ i === record.likes.length - 1 ? '' : ', ' }}</span>
+                                觉得很赞
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, watch, onUnmounted, nextTick } = Vue
+        // 🌟 核心黑科技：自动获取当前网址作为 API 地址
+        const API_BASE = window.location.origin
+
+        createApp({
+            setup() {
+                // 状态变量
+                const token = ref(localStorage.getItem('plank_token') || null)
+                const currentUser = ref(JSON.parse(localStorage.getItem('plank_user') || 'null'))
+                const isLoginMode = ref(true)
+                const errorMessage = ref('')
+                const regForm = ref({ username: '', password: '' })
+
+                const activeTab = ref('plank')
+                const commonNotes = ref('')
+                const plankForm = ref({ duration: '' })
+                const runForm = ref({ distance: '', duration: '' })
+
+                const records = ref([])
+                const leaderboard = ref([])
+                const currentLeaderboardType = ref('7')
+
+                // 🌟 3. 核心修复：图表实例与容器引用
+                const chartRef = ref(null)
+                let myChart = null
+
+                const setupAxios = () => {
+                    if (token.value) axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`;
+                }
+
+                // 🌟 4. 核心修复：极致稳定的图表渲染逻辑
+                const renderChart = () => {
+                    // 使用 setTimeout 确保主线程空闲，DOM 已经渲染完毕
+                    setTimeout(() => {
+                        const container = chartRef.value;
+                        if (!container || !currentUser.value) return;
+
+                        // 如果宽度为 0，说明容器刚出现在 DOM 里还没分配空间，使用 ResizeObserver 监听直到它出现
+                        if (container.offsetWidth === 0) {
+                            const observer = new ResizeObserver(() => {
+                                if (container.offsetWidth > 0) {
+                                    renderChart(); // 递归重试
+                                    observer.disconnect();
+                                }
+                            });
+                            observer.observe(container);
+                            return;
+                        }
+
+                        // 初始化 ECharts
+                        if (!myChart) myChart = echarts.init(container);
+
+                        // 准备数据
+                        const myRecords = records.value
+                            .filter(r => Number(r.user_id) === Number(currentUser.value.id) && r.activity_type === activeTab.value)
+                            .slice(0, 7).reverse();
+
+                        if (myRecords.length === 0) {
+                            myChart.setOption({
+                                title: { text: '暂无打卡数据', left: 'center', top: 'middle', textStyle: { color: '#ccc', fontSize: 13 } },
+                                series: []
+                            }, true);
+                            return;
+                        }
+
+                        const dates = myRecords.map(r => {
+                            const d = new Date(r.record_date);
+                            return `${d.getMonth() + 1}/${d.getDate()}`;
+                        });
+                        const data = myRecords.map(r => activeTab.value === 'plank' ? r.duration_seconds : r.distance);
+                        const unit = activeTab.value === 'plank' ? 's' : 'km';
+                        const themeColor = activeTab.value === 'plank' ? '#3b82f6' : '#22c55e';
+
+                        myChart.setOption({
+                            tooltip: { trigger: 'axis', formatter: `{b}: {c}${unit}` },
+                            grid: { left: '12%', right: '5%', top: '15%', bottom: '15%' },
+                            xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#eee' } } },
+                            yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
+                            series: [{
+                                data: data, type: 'line', smooth: true, itemStyle: { color: themeColor },
+                                areaStyle: {
+                                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                        { offset: 0, color: themeColor + '55' }, { offset: 1, color: themeColor + '00' }
+                                    ])
+                                }
+                            }]
+                        }, true);
+
+                        myChart.resize(); // 强制刷新尺寸
+                    }, 100);
+                }
+
+                // 个人最高记录
+                const personalBest = computed(() => {
+                    if (!currentUser.value) return 0;
+                    const myRecords = records.value.filter(r => r.user_id === currentUser.value.id && r.activity_type === activeTab.value);
+                    if (myRecords.length === 0) return 0;
+                    return activeTab.value === 'plank' ? Math.max(...myRecords.map(r => r.duration_seconds)) : Math.max(...myRecords.map(r => r.distance));
+                })
+
+                // 计时器逻辑
+                const timerSeconds = ref(0)
+                const isTimerRunning = ref(false)
+                let timerInterval = null
+                const displayTimer = computed(() => `${Math.floor(timerSeconds.value / 60).toString().padStart(2, '0')}:${(timerSeconds.value % 60).toString().padStart(2, '0')}`)
+                let wakeLock = null;
+                const startTimer = async () => {
+                    if(isTimerRunning.value) return;
+                    isTimerRunning.value = true;
+                    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+                    timerInterval = setInterval(()=>timerSeconds.value++, 1000);
+                }
+                const pauseTimer = () => {
+                    isTimerRunning.value = false; clearInterval(timerInterval);
+                    if (wakeLock) { wakeLock.release(); wakeLock = null; }
+                }
+                const resetTimer = () => { pauseTimer(); timerSeconds.value = 0; }
+                const useTimerResult = () => { plankForm.value.duration = timerSeconds.value; }
+
+                // 数据拉取
+                const fetchData = async () => {
+                    if(!token.value) return;
+                    setupAxios();
+                    try {
+                        const [resRec, resLead] = await Promise.all([
+                            axios.get(`${API_BASE}/records/`),
+                            axios.get(`${API_BASE}/records/${currentLeaderboardType.value === 'streak' ? 'streaks/'+activeTab.value : 'leaderboard/'+activeTab.value+'/'+currentLeaderboardType.value}`)
+                        ]);
+                        records.value = resRec.data;
+                        leaderboard.value = resLead.data;
+                        renderChart();
+                    } catch (error) { if (error.response?.status === 401) logout(); }
+                }
+
+                let pollInterval = null;
+                onMounted(() => { if (token.value) { fetchData(); pollInterval = setInterval(fetchData, 5000); } })
+                onUnmounted(() => { clearInterval(timerInterval); clearInterval(pollInterval); if (wakeLock) wakeLock.release(); })
+
+                // 🌟 5. 核心修复：监听标签切换，自动重绘图表
+                watch([activeTab, currentLeaderboardType], () => { fetchData(); })
+
+                const handleAuth = async () => {
+                    errorMessage.value = ''
+                    if (!regForm.value.username || !regForm.value.password) { errorMessage.value = '写全哦'; return; }
+                    try {
+                        const res = await axios.post(`${API_BASE}${isLoginMode.value ? '/users/login' : '/users/register'}`, regForm.value)
+                        token.value = res.data.access_token;
+                        currentUser.value = res.data.user;
+                        localStorage.setItem('plank_token', token.value);
+                        localStorage.setItem('plank_user', JSON.stringify(currentUser.value));
+                        // 登录成功后，等待 DOM 渲染主界面
+                        setTimeout(() => {
+                            fetchData();
+                            pollInterval = setInterval(fetchData, 5000);
+                        }, 200);
+                    } catch (error) { errorMessage.value = error.response?.data?.detail || '发生错误'; }
+                }
+
+                const submitRecord = async () => {
+                    let payload = { activity_type: activeTab.value, notes: commonNotes.value };
+                    if (activeTab.value === 'plank') {
+                        if (!plankForm.value.duration || plankForm.value.duration <= 0) return alert('填个时长吧');
+                        payload.duration_seconds = parseInt(plankForm.value.duration);
+                    } else {
+                        if (!runForm.value.distance || !runForm.value.duration) return alert('距离和用时都要填');
+                        payload.distance = parseFloat(runForm.value.distance);
+                        payload.duration_seconds = parseInt(runForm.value.duration) * 60;
+                    }
+                    try {
+                        await axios.post(`${API_BASE}/records/`, payload)
+                        if (payload.duration_seconds > personalBest.value || (payload.distance && payload.distance > personalBest.value)) {
+                            confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+                        }
+                        plankForm.value.duration = ''; runForm.value.distance = ''; runForm.value.duration = ''; commonNotes.value = ''; resetTimer(); fetchData();
+                    } catch (error) { alert('失败了，请重试'); }
+                }
+
+                const isLikedByMe = (record) => record.likes && record.likes.some(like => like.user.username === currentUser.value?.username);
+                const likeRecord = async (id) => { try { await axios.post(`${API_BASE}/records/${id}/like`); fetchData(); } catch(e){} }
+                const logout = () => { localStorage.clear(); token.value = null; currentUser.value = null; records.value=[]; leaderboard.value=[]; clearInterval(pollInterval); }
+                const toggleMode = () => { isLoginMode.value = !isLoginMode.value; errorMessage.value = ''; }
+
+                const getRankClass = (index) => index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : '';
+                const getRankIconBg = (index) => index === 0 ? 'bg-fbbf24' : index === 1 ? 'bg-slate-300' : index === 2 ? 'bg-orange-600' : 'bg-gray-50';
+                const getRankEmoji = (index) => index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
+                const formatTime = (dateStr) => { const d = new Date(dateStr); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+
+                return {
+                    token, currentUser, records, leaderboard, errorMessage, regForm, isLoginMode, currentLeaderboardType, personalBest, chartRef,
+                    activeTab, commonNotes, plankForm, runForm, timerSeconds, isTimerRunning, displayTimer, startTimer, pauseTimer, resetTimer, useTimerResult,
+                    toggleMode, handleAuth, logout, submitRecord, fetchData, getRankClass, getRankIconBg, getRankEmoji, formatTime, likeRecord, isLikedByMe
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
