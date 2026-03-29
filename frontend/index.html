@@ -356,7 +356,35 @@
                 }
 
                 const isLikedByMe = (record) => record.likes && record.likes.some(like => like.user.username === currentUser.value?.username);
-                const likeRecord = async (id) => { try { await axios.post(`${API_BASE}/records/${id}/like`); fetchData(); } catch(e){} }
+                
+                // 🌟 核心优化：乐观 UI 更新，实现“秒级”点赞响应
+                const likeRecord = async (id) => { 
+                    if (!currentUser.value) return; 
+
+                    // 1. 先在本地数据里找到这条被点赞的记录
+                    const record = records.value.find(r => r.id === id);
+                    if (!record) return;
+
+                    // 2. 记住当前状态（用于判断是点赞还是取消赞）
+                    const currentlyLiked = isLikedByMe(record);
+
+                    // 3. ⚡ 瞬间修改本地 UI 状态，不等待服务器，骗过用户眼睛！
+                    if (currentlyLiked) {
+                        // 瞬间取消（从数组里踢掉自己）
+                        record.likes = record.likes.filter(like => like.user.username !== currentUser.value.username);
+                    } else {
+                        // 瞬间加上自己
+                        record.likes.push({ user: { username: currentUser.value.username } });
+                    }
+
+                    // 4. 后台悄悄发送网络请求（不阻碍界面）
+                    axios.post(`${API_BASE}/records/${id}/like`).catch(error => {
+                        // 兜底逻辑：如果断网了点赞失败，把真实数据拉回来纠正错误
+                        console.error('点赞同步失败', error);
+                        fetchData(); 
+                    });
+                }
+
                 const logout = () => { localStorage.clear(); token.value = null; currentUser.value = null; records.value=[]; leaderboard.value=[]; clearInterval(pollInterval); }
                 const toggleMode = () => { isLoginMode.value = !isLoginMode.value; errorMessage.value = ''; }
 
