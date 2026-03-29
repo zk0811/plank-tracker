@@ -177,6 +177,7 @@
 
     <script>
         const { createApp, ref, computed, onMounted, watch, onUnmounted, nextTick } = Vue
+        // 🌟 核心黑科技：自动获取当前网址作为 API 地址
         const API_BASE = window.location.origin
 
         createApp({
@@ -197,15 +198,14 @@
                 const leaderboard = ref([])
                 const currentLeaderboardType = ref('7')
 
-                // 🌟 3. 核心修复：图表实例与容器引用
+                // 🌟 图表容器引用
                 const chartRef = ref(null)
-                let myChart = null
 
                 const setupAxios = () => {
                     if (token.value) axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`;
                 }
 
-                // 🌟 4. 核心修复：极致稳定的图表渲染逻辑
+                // 🌟 终极核心修复：彻底抛弃外部的 let myChart = null，每次动态抓取实例
                 const renderChart = () => {
                     // 使用 setTimeout 确保主线程空闲，DOM 已经渲染完毕
                     setTimeout(() => {
@@ -224,8 +224,11 @@
                             return;
                         }
 
-                        // 初始化 ECharts
-                        if (!myChart) myChart = echarts.init(container);
+                        // 🌟 永远从当前页面真实的 DOM 容器里抓取 ECharts 实例，防止幽灵 DOM 导致图表消失
+                        let chartInstance = echarts.getInstanceByDom(container);
+                        if (!chartInstance) {
+                            chartInstance = echarts.init(container); // 如果没有实例，才新建
+                        }
 
                         // 准备数据
                         const myRecords = records.value
@@ -233,7 +236,7 @@
                             .slice(0, 7).reverse();
 
                         if (myRecords.length === 0) {
-                            myChart.setOption({
+                            chartInstance.setOption({
                                 title: { text: '暂无打卡数据', left: 'center', top: 'middle', textStyle: { color: '#ccc', fontSize: 13 } },
                                 series: []
                             }, true);
@@ -248,7 +251,7 @@
                         const unit = activeTab.value === 'plank' ? 's' : 'km';
                         const themeColor = activeTab.value === 'plank' ? '#3b82f6' : '#22c55e';
 
-                        myChart.setOption({
+                        chartInstance.setOption({
                             tooltip: { trigger: 'axis', formatter: `{b}: {c}${unit}` },
                             grid: { left: '12%', right: '5%', top: '15%', bottom: '15%' },
                             xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#eee' } } },
@@ -263,7 +266,7 @@
                             }]
                         }, true);
 
-                        myChart.resize(); // 强制刷新尺寸
+                        chartInstance.resize(); // 强制刷新尺寸
                     }, 100);
                 }
 
@@ -313,7 +316,7 @@
                 onMounted(() => { if (token.value) { fetchData(); pollInterval = setInterval(fetchData, 5000); } })
                 onUnmounted(() => { clearInterval(timerInterval); clearInterval(pollInterval); if (wakeLock) wakeLock.release(); })
 
-                // 🌟 5. 核心修复：监听标签切换，自动重绘图表
+                // 🌟 监听标签切换，自动重绘图表
                 watch([activeTab, currentLeaderboardType], () => { fetchData(); })
 
                 const handleAuth = async () => {
