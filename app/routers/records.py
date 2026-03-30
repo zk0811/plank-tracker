@@ -118,3 +118,26 @@ def get_streak_leaderboard(activity_type: str, db: Session = Depends(get_db)):
 
     streak_data.sort(key=lambda x: x["current_streak"], reverse=True)
     return streak_data[:10]
+
+
+from fastapi import HTTPException, status
+
+# 🌟 新增：删除打卡记录的接口
+@router.delete("/{id}")
+def delete_record(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(oauth2.get_current_user)):
+    # 1. 在数据库里找出这条记录
+    record_query = db.query(models.Record).filter(models.Record.id == id)
+    record = record_query.first()
+
+    # 2. 如果记录不存在
+    if record == None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到该记录")
+
+    # 3. 核心安全验证：只能删除自己的记录！
+    if record.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作！你只能删除自己的记录。")
+
+    # 4. 执行删除并保存
+    record_query.delete(synchronize_session=False)
+    db.commit()
+    return {"status": "success", "message": "打卡记录已成功撤回"}
