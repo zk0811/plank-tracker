@@ -123,9 +123,9 @@ def get_streak_leaderboard(activity_type: str, db: Session = Depends(get_db)):
 
 from fastapi import HTTPException, status
 
-# 🌟 修改点：这里的 oauth2 换成了 auth
+# 🌟 修复点：去掉了 current_user.id，直接用 int(current_user) 进行比对
 @router.delete("/{id}")
-def delete_record(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+def delete_record(id: int, db: Session = Depends(get_db), current_user = Depends(auth.get_current_user)):
     # 1. 在数据库里找出这条记录
     record_query = db.query(models.Record).filter(models.Record.id == id)
     record = record_query.first()
@@ -134,8 +134,8 @@ def delete_record(id: int, db: Session = Depends(get_db), current_user: models.U
     if record == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到该记录")
 
-    # 3. 核心安全验证：只能删除自己的记录！
-    if record.user_id != current_user.id:
+    # 3. 核心安全验证：只能删除自己的记录！（解决 int 报错）
+    if record.user_id != int(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="无权操作！你只能删除自己的记录。")
 
     # 4. 执行删除并保存
