@@ -57,22 +57,36 @@ def get_all_records(db: Session = Depends(get_db)):
     records = db.query(models.Record).join(models.User).order_by(models.Record.record_date.desc()).limit(50).all()
     return records
 
-@router.get("/leaderboard/{activity_type}/{days}", response_model=List[schemas.LeaderboardEntry])
+@router.get("/leaderboard/{activity_type}/{days}")
 def get_leaderboard(activity_type: str, days: int, db: Session = Depends(get_db)):
-    start_date = datetime.utcnow() - timedelta(days=days)
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    
+    if activity_type == "plank":
+        # 🌟 核心修改：从 func.max 变成 func.sum (累计总秒数)
+        results = db.query(
+            models.User.username, 
+            func.sum(models.Record.duration_seconds).label("total_val")
+        ).join(models.Record, models.User.id == models.Record.user_id)\
+         .filter(models.Record.activity_type == activity_type)\
+         .filter(models.Record.record_date >= cutoff_date)\
+         .group_by(models.User.username)\
+         .order_by(func.sum(models.Record.duration_seconds).desc())\
+         .limit(10).all()
+    else:
+        # 🌟 核心修改：从 func.max 变成 func.sum (累计总公里数)
+        results = db.query(
+            models.User.username, 
+            func.sum(models.Record.distance).label("total_val")
+        ).join(models.Record, models.User.id == models.Record.user_id)\
+         .filter(models.Record.activity_type == activity_type)\
+         .filter(models.Record.record_date >= cutoff_date)\
+         .group_by(models.User.username)\
+         .order_by(func.sum(models.Record.distance).desc())\
+         .limit(10).all()
 
-    # 动态判断：平板比时间，跑步比距离
-    metric = models.Record.duration_seconds if activity_type == "plank" else models.Record.distance
-
-    results = db.query(models.User.username, func.max(metric).label("max_value")
-                       ).join(models.Record, models.User.id == models.Record.user_id
-                              ).filter(models.Record.record_date >= start_date,
-                                       models.Record.activity_type == activity_type  # 增加过滤
-                                       ).group_by(models.User.id).order_by(func.max(metric).desc()).limit(10).all()
-
-    # 防止空数据报错
-    return [{"username": r[0], "max_value": r[1] or 0} for r in results]
-
+    # 💡 偷天换日：我们把求和的结果 (total_val) 依然叫作 "max_value" 传给前端
+    # 这样前端的 Vue 代码完全不需要动，同时加入了 round 保留两位小数，防止跑步距离出现 10.33333 这种无限数字
+    return [{"username": r.username, "max_value": round(r.total_val, 2) if r.total_val else 0} for r in results]
 
 @router.get("/streaks/{activity_type}", response_model=List[schemas.StreakEntry])
 def get_streak_leaderboard(activity_type: str, db: Session = Depends(get_db)):
