@@ -13,17 +13,12 @@
         body { background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
         .app-container { max-width: 500px; margin: 0 auto; min-height: 100vh; background-color: #f9fafb; box-shadow: 0 0 20px rgba(0,0,0,0.03); }
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-
-        /* 1. 🌟 核心修复：强制图表容器有最小高度，防止高度塌陷 */
         #chart-container { min-height: 180px; width: 100%; }
-
         .rank-1 { background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 2px solid #fbbf24; }
         .rank-2 { border-color: #94a3b8; }
         .rank-3 { border-color: #b45309; }
-
         @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.2); } 50% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.6); } }
         .timer-running { animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; border-color: #3b82f6 !important; }
-
         @keyframes heartBeat { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
         .like-animate { animation: heartBeat 0.3s ease-in-out; color: #ef4444; }
         .theme-transition { transition: all 0.3s ease; }
@@ -156,13 +151,20 @@
                                 <span v-if="record.activity_type === 'plank'" class="font-mono font-black text-blue-600">{{ record.duration_seconds }}s</span>
                                 <span v-else class="font-mono font-black text-green-600">{{ record.distance }} km <span class="text-xs font-normal text-gray-400">({{ Math.round(record.duration_seconds/60) }}m)</span></span>
                             </div>
+                            
                             <div class="flex justify-between items-center text-xs text-gray-400 mt-1">
                                 <span>{{ record.notes || '沉默地打卡' }} · {{ formatTime(record.record_date) }}</span>
-                                <button @click="likeRecord(record.id)" class="flex items-center gap-1.5 transition px-3 py-1.5 rounded-full border bg-white"
-                                        :class="isLikedByMe(record) ? 'text-red-500 border-red-100 like-animate' : 'text-gray-300 border-gray-100'">
-                                    <span>{{ isLikedByMe(record) ? '❤️' : '🤍' }}</span><span class="font-bold">{{ record.likes.length }}</span>
-                                </button>
+                                <div class="flex items-center gap-2">
+                                    <button v-if="record.user_id === currentUser?.id" @click="deleteRecord(record.id)" class="text-gray-300 hover:text-red-500 transition px-2 py-1" title="撤回打卡">
+                                        🗑️
+                                    </button>
+                                    <button @click="likeRecord(record.id)" class="flex items-center gap-1.5 transition px-3 py-1.5 rounded-full border bg-white"
+                                            :class="isLikedByMe(record) ? 'text-red-500 border-red-100 like-animate' : 'text-gray-300 border-gray-100'">
+                                        <span>{{ isLikedByMe(record) ? '❤️' : '🤍' }}</span><span class="font-bold">{{ record.likes.length }}</span>
+                                    </button>
+                                </div>
                             </div>
+
                             <div v-if="record.likes.length > 0" class="mt-1 bg-gray-100/50 p-2 rounded-lg text-[10px] text-gray-500 leading-relaxed">
                                 <span class="text-red-300 mr-1">❤️</span>
                                 <span v-for="(like, i) in record.likes" :key="i" class="font-bold text-gray-600">{{ like.user.username }}{{ i === record.likes.length - 1 ? '' : ', ' }}</span>
@@ -177,12 +179,10 @@
 
     <script>
         const { createApp, ref, computed, onMounted, watch, onUnmounted, nextTick } = Vue
-        // 🌟 核心黑科技：自动获取当前网址作为 API 地址
         const API_BASE = window.location.origin
 
         createApp({
             setup() {
-                // 状态变量
                 const token = ref(localStorage.getItem('plank_token') || null)
                 const currentUser = ref(JSON.parse(localStorage.getItem('plank_user') || 'null'))
                 const isLoginMode = ref(true)
@@ -198,25 +198,21 @@
                 const leaderboard = ref([])
                 const currentLeaderboardType = ref('7')
 
-                // 🌟 图表容器引用
                 const chartRef = ref(null)
 
                 const setupAxios = () => {
                     if (token.value) axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`;
                 }
 
-                // 🌟 终极核心修复：彻底抛弃外部的 let myChart = null，每次动态抓取实例
                 const renderChart = () => {
-                    // 使用 setTimeout 确保主线程空闲，DOM 已经渲染完毕
                     setTimeout(() => {
                         const container = chartRef.value;
                         if (!container || !currentUser.value) return;
 
-                        // 如果宽度为 0，说明容器刚出现在 DOM 里还没分配空间，使用 ResizeObserver 监听直到它出现
                         if (container.offsetWidth === 0) {
                             const observer = new ResizeObserver(() => {
                                 if (container.offsetWidth > 0) {
-                                    renderChart(); // 递归重试
+                                    renderChart();
                                     observer.disconnect();
                                 }
                             });
@@ -224,13 +220,11 @@
                             return;
                         }
 
-                        // 🌟 永远从当前页面真实的 DOM 容器里抓取 ECharts 实例，防止幽灵 DOM 导致图表消失
                         let chartInstance = echarts.getInstanceByDom(container);
                         if (!chartInstance) {
-                            chartInstance = echarts.init(container); // 如果没有实例，才新建
+                            chartInstance = echarts.init(container);
                         }
 
-                        // 准备数据
                         const myRecords = records.value
                             .filter(r => Number(r.user_id) === Number(currentUser.value.id) && r.activity_type === activeTab.value)
                             .slice(0, 7).reverse();
@@ -266,11 +260,10 @@
                             }]
                         }, true);
 
-                        chartInstance.resize(); // 强制刷新尺寸
+                        chartInstance.resize();
                     }, 100);
                 }
 
-                // 个人最高记录
                 const personalBest = computed(() => {
                     if (!currentUser.value) return 0;
                     const myRecords = records.value.filter(r => r.user_id === currentUser.value.id && r.activity_type === activeTab.value);
@@ -278,7 +271,6 @@
                     return activeTab.value === 'plank' ? Math.max(...myRecords.map(r => r.duration_seconds)) : Math.max(...myRecords.map(r => r.distance));
                 })
 
-                // 计时器逻辑
                 const timerSeconds = ref(0)
                 const isTimerRunning = ref(false)
                 let timerInterval = null
@@ -297,7 +289,6 @@
                 const resetTimer = () => { pauseTimer(); timerSeconds.value = 0; }
                 const useTimerResult = () => { plankForm.value.duration = timerSeconds.value; }
 
-                // 数据拉取
                 const fetchData = async () => {
                     if(!token.value) return;
                     setupAxios();
@@ -316,7 +307,6 @@
                 onMounted(() => { if (token.value) { fetchData(); pollInterval = setInterval(fetchData, 5000); } })
                 onUnmounted(() => { clearInterval(timerInterval); clearInterval(pollInterval); if (wakeLock) wakeLock.release(); })
 
-                // 🌟 监听标签切换，自动重绘图表
                 watch([activeTab, currentLeaderboardType], () => { fetchData(); })
 
                 const handleAuth = async () => {
@@ -328,7 +318,6 @@
                         currentUser.value = res.data.user;
                         localStorage.setItem('plank_token', token.value);
                         localStorage.setItem('plank_user', JSON.stringify(currentUser.value));
-                        // 登录成功后，等待 DOM 渲染主界面
                         setTimeout(() => {
                             fetchData();
                             pollInterval = setInterval(fetchData, 5000);
@@ -357,32 +346,38 @@
 
                 const isLikedByMe = (record) => record.likes && record.likes.some(like => like.user.username === currentUser.value?.username);
                 
-                // 🌟 核心优化：乐观 UI 更新，实现“秒级”点赞响应
                 const likeRecord = async (id) => { 
                     if (!currentUser.value) return; 
-
-                    // 1. 先在本地数据里找到这条被点赞的记录
                     const record = records.value.find(r => r.id === id);
                     if (!record) return;
-
-                    // 2. 记住当前状态（用于判断是点赞还是取消赞）
                     const currentlyLiked = isLikedByMe(record);
-
-                    // 3. ⚡ 瞬间修改本地 UI 状态，不等待服务器，骗过用户眼睛！
                     if (currentlyLiked) {
-                        // 瞬间取消（从数组里踢掉自己）
                         record.likes = record.likes.filter(like => like.user.username !== currentUser.value.username);
                     } else {
-                        // 瞬间加上自己
                         record.likes.push({ user: { username: currentUser.value.username } });
                     }
-
-                    // 4. 后台悄悄发送网络请求（不阻碍界面）
                     axios.post(`${API_BASE}/records/${id}/like`).catch(error => {
-                        // 兜底逻辑：如果断网了点赞失败，把真实数据拉回来纠正错误
                         console.error('点赞同步失败', error);
                         fetchData(); 
                     });
+                }
+
+                // 🌟 新增：删除打卡记录（防误触 + 乐观 UI）
+                const deleteRecord = async (id) => {
+                    if (!confirm('确定要撤回这条打卡吗？这也会影响你的连胜和排名哦！')) return;
+                    
+                    // 1. 乐观 UI：瞬间从本地列表中消失，提供最快反馈
+                    records.value = records.value.filter(r => r.id !== id);
+                    
+                    try {
+                        // 2. 悄悄通知后端彻底删除
+                        await axios.delete(`${API_BASE}/records/${id}`);
+                        // 3. 重新获取一次全局数据，确保折线图、排行榜、累计总和同步刷新
+                        fetchData();
+                    } catch (error) {
+                        alert('撤回失败，可能网络开了个小差，请重试');
+                        fetchData(); // 如果失败了，就把数据再拉回界面
+                    }
                 }
 
                 const logout = () => { localStorage.clear(); token.value = null; currentUser.value = null; records.value=[]; leaderboard.value=[]; clearInterval(pollInterval); }
@@ -392,22 +387,16 @@
                 const getRankIconBg = (index) => index === 0 ? 'bg-fbbf24' : index === 1 ? 'bg-slate-300' : index === 2 ? 'bg-orange-600' : 'bg-gray-50';
                 const getRankEmoji = (index) => index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
                 
-                // 🌟 核心修复：强制转换为北京时间 (UTC+8) 显示
                 const formatTime = (dateStr) => { 
-                    // 1. 给云端传来的时间补上 'Z'，告诉浏览器这是标准的 0 时区时间
                     const utcTime = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
-                    
-                    // 2. 强行加上 8 小时的毫秒数 (8小时 * 60分 * 60秒 * 1000毫秒 = 28800000)
                     const bjTime = new Date(utcTime.getTime() + 28800000);
-                    
-                    // 3. 提取出精准的北京时间
                     return `${bjTime.getUTCMonth() + 1}/${bjTime.getUTCDate()} ${String(bjTime.getUTCHours()).padStart(2, '0')}:${String(bjTime.getUTCMinutes()).padStart(2, '0')}`; 
                 }
 
                 return {
                     token, currentUser, records, leaderboard, errorMessage, regForm, isLoginMode, currentLeaderboardType, personalBest, chartRef,
                     activeTab, commonNotes, plankForm, runForm, timerSeconds, isTimerRunning, displayTimer, startTimer, pauseTimer, resetTimer, useTimerResult,
-                    toggleMode, handleAuth, logout, submitRecord, fetchData, getRankClass, getRankIconBg, getRankEmoji, formatTime, likeRecord, isLikedByMe
+                    toggleMode, handleAuth, logout, submitRecord, fetchData, getRankClass, getRankIconBg, getRankEmoji, formatTime, likeRecord, isLikedByMe, deleteRecord
                 }
             }
         }).mount('#app')
