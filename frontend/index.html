@@ -391,7 +391,18 @@
                 const getRankClass = (index) => index === 0 ? 'rank-1' : index === 1 ? 'rank-2' : index === 2 ? 'rank-3' : '';
                 const getRankIconBg = (index) => index === 0 ? 'bg-fbbf24' : index === 1 ? 'bg-slate-300' : index === 2 ? 'bg-orange-600' : 'bg-gray-50';
                 const getRankEmoji = (index) => index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
-                const formatTime = (dateStr) => { const d = new Date(dateStr); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+                
+                // 🌟 核心修复：强制转换为北京时间 (UTC+8) 显示
+                const formatTime = (dateStr) => { 
+                    // 1. 给云端传来的时间补上 'Z'，告诉浏览器这是标准的 0 时区时间
+                    const utcTime = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
+                    
+                    // 2. 强行加上 8 小时的毫秒数 (8小时 * 60分 * 60秒 * 1000毫秒 = 28800000)
+                    const bjTime = new Date(utcTime.getTime() + 28800000);
+                    
+                    // 3. 提取出精准的北京时间
+                    return `${bjTime.getUTCMonth() + 1}/${bjTime.getUTCDate()} ${String(bjTime.getUTCHours()).padStart(2, '0')}:${String(bjTime.getUTCMinutes()).padStart(2, '0')}`; 
+                }
 
                 return {
                     token, currentUser, records, leaderboard, errorMessage, regForm, isLoginMode, currentLeaderboardType, personalBest, chartRef,
