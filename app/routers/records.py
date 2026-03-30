@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from .. import models, schemas
 from ..database import get_db
 from ..auth import get_current_user  # 引入解析当前用户的依赖
+from .. import oauth2
 
 router = APIRouter(prefix="/records", tags=["Records"])
 
