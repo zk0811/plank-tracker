@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from .. import models, schemas
 from ..database import get_db
 from ..auth import get_current_user  # 引入解析当前用户的依赖
-from .. import oauth2
+from .. import auth
 
 router = APIRouter(prefix="/records", tags=["Records"])
 
@@ -123,9 +123,9 @@ def get_streak_leaderboard(activity_type: str, db: Session = Depends(get_db)):
 
 from fastapi import HTTPException, status
 
-# 🌟 新增：删除打卡记录的接口
+# 🌟 修改点：这里的 oauth2 换成了 auth
 @router.delete("/{id}")
-def delete_record(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(oauth2.get_current_user)):
+def delete_record(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     # 1. 在数据库里找出这条记录
     record_query = db.query(models.Record).filter(models.Record.id == id)
     record = record_query.first()
