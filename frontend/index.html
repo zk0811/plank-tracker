@@ -13,7 +13,10 @@
         body { background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
         .app-container { max-width: 500px; margin: 0 auto; min-height: 100vh; background-color: #f9fafb; box-shadow: 0 0 20px rgba(0,0,0,0.03); }
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        #chart-container { min-height: 180px; width: 100%; }
+        
+        /* 🌟 修复2：图表高度防塌陷 */
+        #chart-container { min-height: 220px; width: 100%; }
+        
         .rank-1 { background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 2px solid #fbbf24; }
         .rank-2 { border-color: #94a3b8; }
         .rank-3 { border-color: #b45309; }
@@ -29,10 +32,16 @@
         <div :class="activeTab === 'plank' ? 'bg-blue-600' : (activeTab === 'run' ? 'bg-green-500' : 'bg-purple-600')" class="h-2 w-full theme-transition"></div>
 
         <div class="p-6">
-            <div v-if="token" class="flex bg-gray-100 rounded-xl p-1 mb-6 shadow-inner overflow-x-auto">
-                <button @click="activeTab = 'plank'" :class="activeTab === 'plank' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-gray-500'" class="whitespace-nowrap px-4 py-3 rounded-lg theme-transition text-sm">💪 平板</button>
-                <button @click="activeTab = 'run'" :class="activeTab === 'run' ? 'bg-white text-green-600 shadow-sm font-bold' : 'text-gray-500'" class="whitespace-nowrap px-4 py-3 rounded-lg theme-transition text-sm">🏃‍♂️ 跑步</button>
-                <button @click="activeTab = 'free'" :class="activeTab === 'free' ? 'bg-white text-purple-600 shadow-sm font-bold' : 'text-gray-500'" class="whitespace-nowrap px-4 py-3 rounded-lg theme-transition text-sm">🏋️‍♂️ 自由</button>
+            <div v-if="token" class="flex bg-gray-100 rounded-xl p-1 mb-6 shadow-inner">
+                <button @click="activeTab = 'plank'" :class="activeTab === 'plank' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-gray-500 font-medium'" class="flex-1 py-3 rounded-lg theme-transition flex items-center justify-center gap-1 text-[13px] sm:text-sm tracking-tight">
+                    💪 平板支撑
+                </button>
+                <button @click="activeTab = 'run'" :class="activeTab === 'run' ? 'bg-white text-green-600 shadow-sm font-bold' : 'text-gray-500 font-medium'" class="flex-1 py-3 rounded-lg theme-transition flex items-center justify-center gap-1 text-[13px] sm:text-sm tracking-tight">
+                    🏃‍♂️ 户外跑步
+                </button>
+                <button @click="activeTab = 'free'" :class="activeTab === 'free' ? 'bg-white text-purple-600 shadow-sm font-bold' : 'text-gray-500 font-medium'" class="flex-1 py-3 rounded-lg theme-transition flex items-center justify-center gap-1 text-[13px] sm:text-sm tracking-tight">
+                    🏋️‍♂️ 自由训练
+                </button>
             </div>
 
             <h1 v-else class="text-3xl font-extrabold text-center text-gray-900 mb-8 mt-4">💪 运动全能王 🏃‍♂️</h1>
@@ -63,7 +72,7 @@
 
                 <div v-if="activeTab !== 'free'" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                     <h3 class="font-bold text-gray-700 mb-4 text-sm tracking-wide">📈 {{ activeTab === 'plank' ? '近期支撑时长' : '近期跑步里程' }}</h3>
-                    <div id="chart-container" ref="chartRef"></div>
+                    <div id="chart-container" ref="chartRef" style="height: 220px;"></div>
                 </div>
 
                 <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 border-t-4" :class="activeTab === 'plank' ? 'border-t-blue-500' : (activeTab === 'run' ? 'border-t-green-500' : 'border-t-purple-500')">
@@ -143,7 +152,7 @@
                                 <span>{{ (record.activity_type === 'free' ? '自由开练' : (record.notes || '沉默打卡')) }} · {{ formatTime(record.record_date) }}</span>
                                 <div class="flex items-center gap-2">
                                     <button v-if="record.user_id === currentUser?.id" @click="deleteRecord(record.id)" class="text-gray-300 hover:text-red-500 transition px-2 py-1">🗑️</button>
-                                    <button @click="likeRecord(record.id)" class="flex items-center gap-1.5 transition px-3 py-1.5 rounded-full border bg-white" :class="isLikedByMe(record) ? 'text-red-500 border-red-100' : 'text-gray-300 border-gray-100'">
+                                    <button @click="likeRecord(record.id)" class="flex items-center gap-1.5 transition px-3 py-1.5 rounded-full border bg-white" :class="isLikedByMe(record) ? 'text-red-500 border-red-100 like-animate' : 'text-gray-300 border-gray-100'">
                                         <span>{{ isLikedByMe(record) ? '❤️' : '🤍' }}</span><span class="font-bold">{{ record.likes.length }}</span>
                                     </button>
                                 </div>
@@ -170,7 +179,6 @@
                 const commonNotes = ref('')
                 const plankForm = ref({ duration: '' })
                 const runForm = ref({ distance: '', duration: '' })
-                // 🌟 新增：自由训练表单
                 const freeForm = ref({ action: '', quantity: '' })
 
                 const records = ref([])
@@ -192,10 +200,18 @@
                         const themeColor = activeTab.value === 'plank' ? '#3b82f6' : '#22c55e';
                         chartInstance.setOption({
                             tooltip: { trigger: 'axis' },
-                            xAxis: { type: 'category', data: dates },
-                            yAxis: { type: 'value' },
-                            series: [{ data: data, type: 'line', smooth: true, itemStyle: { color: themeColor } }]
+                            grid: { left: '12%', right: '5%', top: '15%', bottom: '15%' },
+                            xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#eee' } } },
+                            yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
+                            series: [{ data: data, type: 'line', smooth: true, itemStyle: { color: themeColor },
+                                areaStyle: {
+                                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                        { offset: 0, color: themeColor + '55' }, { offset: 1, color: themeColor + '00' }
+                                    ])
+                                }
+                            }]
                         }, true);
+                        chartInstance.resize();
                     }, 100);
                 }
 
@@ -227,8 +243,8 @@
                     let payload = { activity_type: activeTab.value, notes: commonNotes.value };
                     if (activeTab.value === 'free') {
                         if (!freeForm.value.action) return alert('请填写动作名称');
-                        payload.notes = freeForm.value.action; // 动作名存notes
-                        payload.duration_seconds = parseInt(freeForm.value.quantity) || 0; // 数量存这里
+                        payload.notes = freeForm.value.action; 
+                        payload.duration_seconds = parseInt(freeForm.value.quantity) || 0; 
                     } else if (activeTab.value === 'plank') {
                         payload.duration_seconds = parseInt(plankForm.value.duration);
                     } else {
@@ -248,7 +264,26 @@
                 }
 
                 const isLikedByMe = (record) => record.likes && record.likes.some(like => like.user.username === currentUser.value?.username);
-                const likeRecord = (id) => { axios.post(`${API_BASE}/records/${id}/like`).then(fetchData); }
+                
+                // 🌟 修复3：找回丢失的“乐观 UI 秒级点赞”逻辑
+                const likeRecord = async (id) => { 
+                    if (!currentUser.value) return; 
+                    const record = records.value.find(r => r.id === id);
+                    if (!record) return;
+                    
+                    const currentlyLiked = isLikedByMe(record);
+                    if (currentlyLiked) {
+                        record.likes = record.likes.filter(like => like.user.username !== currentUser.value.username);
+                    } else {
+                        record.likes.push({ user: { username: currentUser.value.username } });
+                    }
+                    
+                    axios.post(`${API_BASE}/records/${id}/like`).catch(error => {
+                        console.error('点赞同步失败', error);
+                        fetchData(); 
+                    });
+                }
+
                 const handleAuth = async () => { try { const res = await axios.post(`${API_BASE}${isLoginMode.value ? '/users/login' : '/users/register'}`, regForm.value); token.value = res.data.access_token; currentUser.value = res.data.user; localStorage.setItem('plank_token', token.value); localStorage.setItem('plank_user', JSON.stringify(currentUser.value)); location.reload(); } catch (e) { errorMessage.value = '错误'; } }
                 const logout = () => { localStorage.clear(); location.reload(); }
                 const toggleMode = () => isLoginMode.value = !isLoginMode.value
