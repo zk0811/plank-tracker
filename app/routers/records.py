@@ -4,6 +4,7 @@ from sqlalchemy import func
 from typing import List
 from datetime import datetime, timedelta
 import json
+import re  # 🌟 核心新增：正则表达式库，用来对付 AI 的废话
 from zhipuai import ZhipuAI 
 
 from .. import models, schemas
@@ -15,22 +16,22 @@ router = APIRouter(prefix="/records", tags=["Records"])
 # 🌟 你的 API Key
 client = ZhipuAI(api_key="a31f7b3b6d73434d8ce69b63411f7313.7bfBGcxsSeAWWRqh")
 
-# 🌟 进化版 AI：RPG 经验值分配系统 (克制给分，强调长期累加)
+# 🌟 进化版 AI：强制过滤 + 经验值分配系统
 def get_ai_scores(user_input: str, streak_days: int):
     prompt = f"""
     你是一个硬核健身游戏的 AI 数值策划。请根据用户的打卡内容，为他们分配本次训练的【经验值(EXP)】。
     输入内容: "{user_input}"
     当前连胜: {streak_days} 天
 
-    打分规则 (单次得分必须克制，通常在 5-30 之间，单项最高绝对不超过 40，要让用户有长期升级的动力)：
-    1. upper (上肢): 只要包含"练胸/练背/练肩"，即使没有个数，也必须给基础分 15 分。如果有明确大重量或高次数（如50个俯卧撑/引体向上），给 20-30 分。
-    2. lower (下肢): 只要提到"练腿/深蹲"，无个数默认 15 分。明确跑步距离长的给 20-30 分。
-    3. core (核心): 练腹肌、平板支撑。根据描述的痛苦程度和时长给 10-25 分。
-    4. cardio (心肺): 跑步、有氧、单车。默认 15 分，高强度 25 分。
-    5. discipline (自律): 只要今天打卡了就给 5 分基础分，外加 (连胜天数 * 2) 的奖励分，单次自律得分上限 20 分。
+    打分规则 (单次得分必须克制，通常在 5-30 之间，最高不超过 40)：
+    1. upper (上肢): 只要包含"练胸/练背/练肩"，给 15-30 分。
+    2. lower (下肢): 只要提到"练腿/深蹲/跑步"，给 15-30 分。
+    3. core (核心): 平板支撑、练腹肌，给 15-30 分。
+    4. cardio (心肺): 跑步、有氧，给 15-30 分。
+    5. discipline (自律): 只要打卡就给 5 分基础分，外加 (连胜天数 * 2) 奖励，上限 20 分。
 
-    注意：必须识别模糊词意！只要用户去了健身房练了某个部位，该部位绝不能是 0 分！
-    只需返回标准 JSON, 不要包含多余文本:
+    绝对禁止输出任何前言后语、Markdown标记(如```json)或解释！只允许输出一个合法的 JSON 字典！
+    格式如下:
     {{"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": 0}}
     """
     try:
@@ -39,10 +40,20 @@ def get_ai_scores(user_input: str, streak_days: int):
             messages=[{"role": "user", "content": prompt}],
         )
         res_text = response.choices[0].message.content
-        res_text = res_text.replace('```json', '').replace('```', '').strip()
-        return json.loads(res_text)
-    except:
-        return {"upper": 5, "lower": 5, "core": 5, "cardio": 5, "discipline": 5}
+        
+        # 🌟 核心修复：用“正则镊子”精准提取 JSON 格式的数据，无视多余字符
+        match = re.search(r'\{[\s\S]*\}', res_text)
+        if match:
+            json_str = match.group(0)
+            return json.loads(json_str)
+        else:
+            print("未能提取到 JSON:", res_text)
+            return {"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": 10}
+            
+    except Exception as e:
+        print(f"AI 调用彻底失败: {e}")
+        # 钓鱼测试：如果真失败了，故意给全部设为 8，这样你一看图表全变成 8 就能发现端倪！
+        return {"upper": 8, "lower": 8, "core": 8, "cardio": 8, "discipline": 8}
 
 
 # 🌟 1. 创建打卡记录
@@ -52,20 +63,16 @@ def create_record(record: schemas.RecordCreate, db: Session = Depends(get_db), c
     if not user: 
         raise HTTPException(status_code=401, detail="登录已失效")
 
-    # 简化的连胜计算 (默认 1，后续可深入优化)
     streak = 1 
     
-    # 🌟 改进：为 AI 拼接更具描述性的信息
     if record.activity_type == "plank":
         ai_input = f"我坚持做了 {record.duration_seconds} 秒的平板支撑，非常累，核心在燃烧。"
     elif record.activity_type == "run":
         ai_input = f"我完成了 {record.distance} 公里的户外跑步，用时 {record.duration_seconds // 60} 分钟。"
     else:
-        # 自由训练：拼接动作名和数量
         qty_str = f" {record.duration_seconds} 次" if record.duration_seconds > 0 else ""
         ai_input = f"我进行了自由训练：{record.notes}{qty_str}。"
 
-    # 连线 AI 裁判获取经验值
     scores = get_ai_scores(ai_input, streak)
 
     new_record = models.Record(
