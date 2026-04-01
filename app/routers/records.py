@@ -13,7 +13,7 @@ from ..auth import get_current_user  # 统一引入解析当前用户的依赖
 router = APIRouter(prefix="/records", tags=["Records"])
 
 # 🌟 新增：初始化 AI 教练 (请务必把你的真实 Key 填在下面)
-client = ZhipuAI(api_key=a31f7b3b6d73434d8ce69b63411f7313.7bfBGcxsSeAwWRqh)
+client = ZhipuAI(api_key="a31f7b3b6d73434d8ce69b63411f7313.7bfBGcxsSeAwWRqh")
 
 # 🌟 新增：AI 裁判打分核心系统 (暂未接入路由，先随服务器部署测试环境)
 def get_ai_scores(user_input: str, streak_days: int):
