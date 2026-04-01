@@ -13,12 +13,55 @@ from ..auth import get_current_user
 
 router = APIRouter(prefix="/records", tags=["Records"])
 
+# 🌟 初始化智谱 AI (填入你的 API Key)
 client = ZhipuAI(api_key="a31f7b3b6d73434d8ce69b63411f7313.7bfBGcxsSeAWWRqh")
 
-def get_ai_scores(user_input: str, streak_days: int):
+# 🛡️ 强化版：本地智能兜底算法 (Smart Fallback)
+# 当 AI 超时或崩溃时，瞬间接管算分，内置丰富健身词库！
+def get_smart_fallback(activity_type, notes, duration, distance, streak):
+    # 基础自律分：打卡即送 5 分 + 连胜加成
+    scores = {"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": min(5 + streak * 2, 20)}
+    text = str(notes) if notes else ""
+    
+    if activity_type == "plank":
+        # 平板支撑：精准算分 (基础15分 + 每分钟5分，上限30分)
+        scores["core"] = min(15 + (duration // 60) * 5, 30)
+    elif activity_type == "run":
+        # 跑步：精准算分 (按公里数线性增长)
+        dist = distance or 0
+        scores["lower"] = min(15 + int(dist * 2), 30)
+        scores["cardio"] = min(15 + int(dist * 3), 30)
+    else:
+        # 自由训练：强化版正则字典，精准捕捉动作语义！
+        
+        # 1. 上肢关键词扩充
+        if re.search(r'(胸|背|肩|臂|推|拉|卧撑|引体|哑铃|杠铃|史密斯|龙门架|飞鸟|划船|二头|三头|上肢|推举)', text):
+            scores["upper"] = 25
+            
+        # 2. 下肢关键词扩充
+        if re.search(r'(腿|臀|深蹲|硬拉|下肢|倒蹬|腿举|保加利亚)', text):
+            scores["lower"] = 25
+            
+        # 3. 核心关键词扩充
+        if re.search(r'(腹|核心|卷腹|支撑|俄罗斯|马甲线|人鱼线)', text):
+            scores["core"] = 25
+            
+        # 4. 心肺/有氧关键词扩充
+        if re.search(r'(跑|跳|有氧|单车|波比|骑|椭圆机|划船机|爬楼机|跳绳)', text):
+            scores["cardio"] = 25
+            
+        # 5. 保底机制：如果用户写了极其冷门的词，为了不让他白练，给予基础鼓励
+        if scores["upper"] == 0 and scores["lower"] == 0 and scores["core"] == 0 and scores["cardio"] == 0:
+            scores["core"] = 10 
+            
+    return scores
+
+
+# 🧠 AI 算分核心引擎
+def get_ai_scores(record: schemas.RecordCreate, ai_input: str, streak_days: int):
     prompt = f"""
     你是一个硬核健身游戏的 AI 数值策划。请根据用户的打卡内容，分配本次训练的【经验值(EXP)】。
-    输入内容: "{user_input}"
+    输入内容: "{ai_input}"
     当前连胜: {streak_days} 天
 
     打分规则 (单项分数在 0-30 之间，最高绝对不超过 40)：
@@ -32,18 +75,29 @@ def get_ai_scores(user_input: str, streak_days: int):
     {{"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": 0}}
     """
     try:
+        # 🌟 设定 8 秒超时强制熔断机制
         response = client.chat.completions.create(
             model="glm-4-flash",
             messages=[{"role": "user", "content": prompt}],
+            timeout=8.0 
         )
         res_text = response.choices[0].message.content
         match = re.search(r'\{[\s\S]*\}', res_text)
+        
         if match:
             return json.loads(match.group(0))
         else:
-            return {"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": 10}
+            raise Exception("AI 格式异常")
+            
     except Exception as e:
-        return {"upper": 5, "lower": 5, "core": 5, "cardio": 5, "discipline": 5}
+        print(f"🤖 AI 请求异常 ({e})，已无缝切换至本地智能兜底引擎！")
+        # 熔断生效，静默调用强化版兜底算法！
+        return get_smart_fallback(record.activity_type, record.notes, record.duration_seconds, record.distance, streak_days)
+
+
+# ==========================================
+# 下方为 API 路由接口 (保持原样，提供基础 CRUD 功能)
+# ==========================================
 
 @router.post("/", response_model=schemas.RecordResponse)
 def create_record(record: schemas.RecordCreate, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
@@ -52,7 +106,6 @@ def create_record(record: schemas.RecordCreate, db: Session = Depends(get_db), c
 
     streak = 1 
     
-    # 🌟 核心升级：为 AI 精准喂入数据，附带用户备注
     notes_str = f" 附加描述: {record.notes}" if record.notes else ""
     if record.activity_type == "plank":
         ai_input = f"平板支撑 {record.duration_seconds} 秒。{notes_str}"
@@ -62,7 +115,7 @@ def create_record(record: schemas.RecordCreate, db: Session = Depends(get_db), c
         qty_str = f" {record.duration_seconds} 次" if record.duration_seconds > 0 else ""
         ai_input = f"自由训练动作: {record.notes}{qty_str}。"
 
-    scores = get_ai_scores(ai_input, streak)
+    scores = get_ai_scores(record, ai_input, streak)
 
     new_record = models.Record(
         **record.model_dump(), 
