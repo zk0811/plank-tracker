@@ -12,23 +12,25 @@ from ..auth import get_current_user
 
 router = APIRouter(prefix="/records", tags=["Records"])
 
-# 🌟 AI 裁判初始化 (你的 API Key)
+# 🌟 你的 API Key
 client = ZhipuAI(api_key="a31f7b3b6d73434d8ce69b63411f7313.7bfBGcxsSeAWWRqh")
 
+# 🌟 进化版 AI：RPG 经验值分配系统 (克制给分，强调长期累加)
 def get_ai_scores(user_input: str, streak_days: int):
     prompt = f"""
-    你是一个专业的健身教练。请分析用户的打卡记录并给出0-100的分数。
-    打卡内容: "{user_input}"
-    用户已连续打卡: {streak_days} 天
-    
-    请根据动作强度和部位分五个维度打分(0-100)：
-    - upper (上肢力量): 俯卧撑、引体向上、练胸背肩等。
-    - lower (下肢力量): 跑步、深蹲、练腿等。
-    - core (核心力量): 平板支撑、腹肌训练等。
-    - cardio (心肺耐力): 跑步、开合跳等有氧。
-    - discipline (自律): 1天20分，5天100分，最高100。
-    
-    只需返回标准的 JSON，不要解释:
+    你是一个硬核健身游戏的 AI 数值策划。请根据用户的打卡内容，为他们分配本次训练的【经验值(EXP)】。
+    输入内容: "{user_input}"
+    当前连胜: {streak_days} 天
+
+    打分规则 (单次得分必须克制，通常在 5-30 之间，单项最高绝对不超过 40，要让用户有长期升级的动力)：
+    1. upper (上肢): 只要包含"练胸/练背/练肩"，即使没有个数，也必须给基础分 15 分。如果有明确大重量或高次数（如50个俯卧撑/引体向上），给 20-30 分。
+    2. lower (下肢): 只要提到"练腿/深蹲"，无个数默认 15 分。明确跑步距离长的给 20-30 分。
+    3. core (核心): 练腹肌、平板支撑。根据描述的痛苦程度和时长给 10-25 分。
+    4. cardio (心肺): 跑步、有氧、单车。默认 15 分，高强度 25 分。
+    5. discipline (自律): 只要今天打卡了就给 5 分基础分，外加 (连胜天数 * 2) 的奖励分，单次自律得分上限 20 分。
+
+    注意：必须识别模糊词意！只要用户去了健身房练了某个部位，该部位绝不能是 0 分！
+    只需返回标准 JSON, 不要包含多余文本:
     {{"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": 0}}
     """
     try:
@@ -40,18 +42,30 @@ def get_ai_scores(user_input: str, streak_days: int):
         res_text = res_text.replace('```json', '').replace('```', '').strip()
         return json.loads(res_text)
     except:
-        return {"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": min(streak_days * 20, 100)}
+        return {"upper": 5, "lower": 5, "core": 5, "cardio": 5, "discipline": 5}
 
 
-# 🌟 1. 创建打卡记录 (加入 AI 算分)
+# 🌟 1. 创建打卡记录
 @router.post("/", response_model=schemas.RecordResponse)
 def create_record(record: schemas.RecordCreate, db: Session = Depends(get_db), current_user_id: int = Depends(get_current_user)):
     user = db.query(models.User).filter(models.User.id == current_user_id).first()
     if not user: 
         raise HTTPException(status_code=401, detail="登录已失效")
 
-    streak = 1 # 暂定为 1
-    ai_input = record.notes if record.activity_type == "free" else f"{record.activity_type} {record.duration_seconds}秒"
+    # 简化的连胜计算 (默认 1，后续可深入优化)
+    streak = 1 
+    
+    # 🌟 改进：为 AI 拼接更具描述性的信息
+    if record.activity_type == "plank":
+        ai_input = f"我坚持做了 {record.duration_seconds} 秒的平板支撑，非常累，核心在燃烧。"
+    elif record.activity_type == "run":
+        ai_input = f"我完成了 {record.distance} 公里的户外跑步，用时 {record.duration_seconds // 60} 分钟。"
+    else:
+        # 自由训练：拼接动作名和数量
+        qty_str = f" {record.duration_seconds} 次" if record.duration_seconds > 0 else ""
+        ai_input = f"我进行了自由训练：{record.notes}{qty_str}。"
+
+    # 连线 AI 裁判获取经验值
     scores = get_ai_scores(ai_input, streak)
 
     new_record = models.Record(
@@ -69,7 +83,7 @@ def create_record(record: schemas.RecordCreate, db: Session = Depends(get_db), c
     return new_record
 
 
-# 🌟 2. 获取全频道动态 (被你误删的获取接口，现在找回来了！)
+# 🌟 2. 获取全频道动态
 @router.get("/", response_model=List[schemas.RecordResponse])
 def get_all_records(db: Session = Depends(get_db)):
     records = db.query(models.Record).join(models.User).order_by(models.Record.record_date.desc()).limit(50).all()
