@@ -15,49 +15,48 @@ router = APIRouter(prefix="/records", tags=["Records"])
 
 client = ZhipuAI(api_key="a31f7b3b6d73434d8ce69b63411f7313.7bfBGcxsSeAWWRqh")
 
-# 🛡️ 强化本地兜底：完全按照 RPG 15天满级数值体系打造
+# 🛡️ 强化本地兜底：彻底解除单次分数上限限制 (最高可一次加 500 分)
 def get_smart_fallback(activity_type, notes, duration, distance, streak):
-    # 自律分：15 + (连胜*2)，大约15天可以累积500分
-    scores = {"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": min(15 + streak * 2, 40)}
+    scores = {"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": min(15 + streak * 2, 50)}
     text = str(notes) if notes else ""
     
     if activity_type == "plank":
-        # 核心：2000秒打满500分 -> 1秒 = 0.25分
-        scores["core"] = min(int((duration or 0) * 0.25), 150)
+        # 核心：1秒 = 0.25分，2000秒打满500分
+        scores["core"] = min(int((duration or 0) * 0.25), 500)
     elif activity_type == "run":
-        # 跑步：45km打满500分 -> 1km = 11.11分
+        # 跑步：1km = 11.11分，45km打满500分
         dist = distance or 0
-        scores["lower"] = min(int(dist * 11.11), 150)
-        scores["cardio"] = min(int(dist * 11.11), 150)
+        scores["lower"] = min(int(dist * 11.11), 500)
+        scores["cardio"] = min(int(dist * 11.11), 500)
     else:
-        # 自由训练：每次打卡给 33 分左右（15次满500）
+        # 自由训练：每次打卡给 35 分（大约15次满500）
         if re.search(r'(胸|背|肩|臂|推|拉|卧撑|引体|哑铃|杠铃|史密斯|龙门架|飞鸟|划船|二头|三头|上肢|推举)', text):
-            scores["upper"] = 33
+            scores["upper"] = 35
         if re.search(r'(腿|臀|深蹲|硬拉|下肢|倒蹬|腿举|保加利亚)', text):
-            scores["lower"] = 33
+            scores["lower"] = 35
         if re.search(r'(腹|核心|卷腹|支撑|俄罗斯|马甲线|人鱼线)', text):
-            scores["core"] = 33
+            scores["core"] = 35
         if re.search(r'(跑|跳|有氧|单车|波比|骑|椭圆机|划船机|爬楼机|跳绳)', text):
-            scores["cardio"] = 33
+            scores["cardio"] = 35
             
         if scores["upper"] == 0 and scores["lower"] == 0 and scores["core"] == 0 and scores["cardio"] == 0:
             scores["core"] = 15 
             
     return scores
 
-# 🧠 AI 算分核心引擎：喂入精准的转化率
+# 🧠 AI 算分引擎：解除封印，让它按照真实比例放行
 def get_ai_scores(record: schemas.RecordCreate, ai_input: str, streak_days: int):
     prompt = f"""
-    你是一个硬核健身游戏的 AI 数值策划。请根据用户的打卡内容，分配本次训练的【经验值(EXP)】。
+    你是一个硬核健身游戏的 AI 数值策划。请根据用户的打卡内容分配【经验值(EXP)】。
     输入内容: "{ai_input}"
     当前连胜: {streak_days} 天
 
-    严格遵守以下数值转化规则（直接输出数值，不用解释）：
-    1. upper (上肢): 练胸/背/肩/臂，单次给 33 分。
-    2. lower (下肢): 跑步按 (公里数 * 11.1) 计算，深蹲/练腿单次给 33 分。
-    3. core (核心): 平板支撑按 (秒数 * 0.25) 计算，练腹肌单次给 33 分。
-    4. cardio (心肺): 跑步按 (公里数 * 11.1) 计算，有氧单次给 33 分。
-    5. discipline (自律): 基础 15 分 + (连胜天数 * 2)，最高不超过 40 分。
+    严格遵守以下数值转化规则（单项上限 500 分，直接输出数值，不要解释）：
+    1. upper (上肢): 练胸/背/肩/臂，单次给 35 分。如果数量极大（如100个），给 50-100 分。
+    2. lower (下肢): 必须严格按 (跑步公里数 * 11.1) 计算。深蹲/练腿单次给 35 分。
+    3. core (核心): 必须严格按 (平板支撑秒数 * 0.25) 计算。练腹肌单次给 35 分。
+    4. cardio (心肺): 必须严格按 (跑步公里数 * 11.1) 计算。其他有氧单次给 35 分。
+    5. discipline (自律): 基础 15 分 + (连胜天数 * 2)。
 
     绝对禁止输出多余文本、Markdown标记！只允许输出 JSON 字典！
     {{"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": 0}}
@@ -109,7 +108,6 @@ def create_record(record: schemas.RecordCreate, db: Session = Depends(get_db), c
     db.refresh(new_record)
     return new_record
 
-# 🌟 扩充读取上限，确保前端能拿到完整的生命周期数据来计算等级
 @router.get("/", response_model=List[schemas.RecordResponse])
 def get_all_records(db: Session = Depends(get_db)):
     return db.query(models.Record).join(models.User).order_by(models.Record.record_date.desc()).limit(500).all()
