@@ -6,3 +6,4 @@ pyjwt
 passlib
 bcrypt
 psycopg2-binary
+zhipuai
