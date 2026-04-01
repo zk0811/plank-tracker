@@ -13,15 +13,11 @@
         body { background-color: #f3f4f6; -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
         .app-container { max-width: 500px; margin: 0 auto; min-height: 100vh; background-color: #f9fafb; box-shadow: 0 0 20px rgba(0,0,0,0.03); }
         input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        #chart-container { min-height: 220px; width: 100%; }
         .rank-1 { background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border: 2px solid #fbbf24; }
         .rank-2 { border-color: #94a3b8; }
         .rank-3 { border-color: #b45309; }
-        
-        /* 计时器发光特效 */
         @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.2); } 50% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.6); } }
         .timer-running { animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; border-color: #3b82f6 !important; }
-        
         @keyframes heartBeat { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
         .like-animate { animation: heartBeat 0.3s ease-in-out; color: #ef4444; }
         .theme-transition { transition: all 0.3s ease; }
@@ -33,15 +29,9 @@
 
         <div class="p-6">
             <div v-if="token" class="flex bg-gray-100 rounded-xl p-1 mb-6 shadow-inner">
-                <button @click="activeTab = 'plank'" :class="activeTab === 'plank' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-gray-500 font-medium'" class="flex-1 py-3 rounded-lg theme-transition flex items-center justify-center gap-1 text-[13px] sm:text-sm tracking-tight">
-                    💪 平板支撑
-                </button>
-                <button @click="activeTab = 'run'" :class="activeTab === 'run' ? 'bg-white text-green-600 shadow-sm font-bold' : 'text-gray-500 font-medium'" class="flex-1 py-3 rounded-lg theme-transition flex items-center justify-center gap-1 text-[13px] sm:text-sm tracking-tight">
-                    🏃‍♂️ 户外跑步
-                </button>
-                <button @click="activeTab = 'free'" :class="activeTab === 'free' ? 'bg-white text-purple-600 shadow-sm font-bold' : 'text-gray-500 font-medium'" class="flex-1 py-3 rounded-lg theme-transition flex items-center justify-center gap-1 text-[13px] sm:text-sm tracking-tight">
-                    🏋️‍♂️ 自由训练
-                </button>
+                <button @click="activeTab = 'plank'" :class="activeTab === 'plank' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-gray-500 font-medium'" class="flex-1 py-3 rounded-lg theme-transition flex items-center justify-center gap-1 text-[13px] sm:text-sm tracking-tight">💪 平板</button>
+                <button @click="activeTab = 'run'" :class="activeTab === 'run' ? 'bg-white text-green-600 shadow-sm font-bold' : 'text-gray-500 font-medium'" class="flex-1 py-3 rounded-lg theme-transition flex items-center justify-center gap-1 text-[13px] sm:text-sm tracking-tight">🏃‍♂️ 跑步</button>
+                <button @click="activeTab = 'free'" :class="activeTab === 'free' ? 'bg-white text-purple-600 shadow-sm font-bold' : 'text-gray-500 font-medium'" class="flex-1 py-3 rounded-lg theme-transition flex items-center justify-center gap-1 text-[13px] sm:text-sm tracking-tight">🏋️‍♂️ 自由</button>
             </div>
 
             <h1 v-else class="text-3xl font-extrabold text-center text-gray-900 mb-8 mt-4">💪 运动全能王 🏃‍♂️</h1>
@@ -71,10 +61,15 @@
                 </div>
 
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                    <h3 class="font-bold text-gray-700 mb-2 text-sm tracking-wide text-center">🌟 个人综合战力 (EXP)</h3>
+                    <div id="radar-chart-container" ref="radarChartRef" style="height: 240px; width: 100%;"></div>
+                </div>
+
+                <div v-if="activeTab !== 'free'" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                     <h3 class="font-bold text-gray-700 mb-4 text-sm tracking-wide">
-                        {{ activeTab === 'free' ? '📊 近期健身五维战力 (长期积累)' : (activeTab === 'plank' ? '📈 近期支撑时长' : '📈 近期跑步里程') }}
+                        {{ activeTab === 'plank' ? '📈 近期支撑时长' : '📈 近期跑步里程' }}
                     </h3>
-                    <div id="chart-container" ref="chartRef" style="height: 220px;"></div>
+                    <div id="line-chart-container" ref="lineChartRef" style="height: 180px; width: 100%;"></div>
                 </div>
 
                 <div v-if="activeTab === 'plank'" :class="{'timer-running': isTimerRunning}" class="bg-gray-900 rounded-2xl p-6 shadow-xl text-white border-2 border-transparent transition-all duration-300">
@@ -89,7 +84,7 @@
                         </template>
                     </div>
                     <div v-if="!isTimerRunning && timerSeconds > 0" class="pt-4 border-t border-gray-800">
-                        <button @click="useTimerResult" class="w-full bg-blue-500 text-white font-bold py-3.5 rounded-xl shadow-lg">将结果填入打卡单</button>
+                        <button @click="useTimerResult" class="w-full bg-blue-500 text-white font-bold py-3.5 rounded-xl shadow-lg">填入成绩</button>
                     </div>
                 </div>
 
@@ -202,7 +197,10 @@
                 const records = ref([])
                 const leaderboard = ref([])
                 const currentLeaderboardType = ref('7')
-                const chartRef = ref(null)
+                
+                // 两个图表的独立引用
+                const radarChartRef = ref(null)
+                const lineChartRef = ref(null)
 
                 const timerSeconds = ref(0)
                 const isTimerRunning = ref(false)
@@ -225,101 +223,74 @@
 
                 const setupAxios = () => { if (token.value) axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`; }
 
-                // 🌟 核心升级：ECharts 智能判定渲染雷达图还是折线图
+                // 🌟 双开图表渲染逻辑
                 const renderChart = () => {
                     setTimeout(() => {
-                        const container = chartRef.value;
-                        if (!container || !currentUser.value) return;
-                        
-                        if (container.offsetWidth === 0) {
-                            const observer = new ResizeObserver(() => {
-                                if (container.offsetWidth > 0) {
-                                    renderChart();
-                                    observer.disconnect();
-                                }
-                            });
-                            observer.observe(container);
-                            return;
-                        }
-
-                        let chartInstance = echarts.getInstanceByDom(container);
-                        if (!chartInstance) {
-                            chartInstance = echarts.init(container);
-                        } else {
-                            // 清空之前的画板，防止折线图和雷达图重叠残影
-                            chartInstance.clear(); 
-                        }
-                        
+                        if (!currentUser.value) return;
                         const myRecords = records.value.filter(r => Number(r.user_id) === Number(currentUser.value.id));
 
-                        if (activeTab.value === 'free') {
-                            // 🚀 核心大改：从“求平均”变成“RPG 经验值累加”
-                            const recent = myRecords.slice(0, 30); // 提取最近 30 次打卡作为经验池
-                            
-                            // reduce 累加求和，不再除以 length
+                        // 1. 绘制全局雷达图
+                        if (radarChartRef.value && radarChartRef.value.offsetWidth > 0) {
+                            let radarChart = echarts.getInstanceByDom(radarChartRef.value) || echarts.init(radarChartRef.value);
+                            const recent = myRecords.slice(0, 30);
                             const sum = (key) => recent.reduce((s, r) => s + (r[key] || 0), 0);
 
-                            if (recent.length === 0) { 
-                                chartInstance.setOption({ title: { text: '暂无数据，快去开练！', left: 'center', top: 'middle', textStyle: { color: '#999', fontSize: 14 } }, series: [] }, true); 
-                                return; 
-                            }
-
-                            chartInstance.setOption({
+                            radarChart.setOption({
                                 tooltip: { trigger: 'item' },
                                 radar: {
                                     indicator: [
-                                        // 🌟 雷达图容量扩充到 500！需要长期打卡才能拉满
-                                        { name: '推力(上肢)', max: 500 },
-                                        { name: '底盘(下肢)', max: 500 },
-                                        { name: '核心(腹部)', max: 500 },
-                                        { name: '引擎(心肺)', max: 500 },
-                                        { name: '意志(自律)', max: 500 }
+                                        { name: '推力', max: 500 },
+                                        { name: '底盘', max: 500 },
+                                        { name: '核心', max: 500 },
+                                        { name: '心肺', max: 500 },
+                                        { name: '自律', max: 500 }
                                     ],
-                                    shape: 'polygon',
-                                    splitNumber: 5,
+                                    shape: 'polygon', splitNumber: 5,
                                     axisName: { color: '#666', fontSize: 11, fontWeight: 'bold' },
-                                    center: ['50%', '50%'],
-                                    radius: '65%'
+                                    center: ['50%', '50%'], radius: '65%'
                                 },
                                 series: [{
                                     type: 'radar',
                                     data: [{
-                                        // 🌟 填入累加后的总分
                                         value: [sum('upper'), sum('lower'), sum('core'), sum('cardio'), sum('discipline')],
-                                        name: '近期综合战力',
+                                        name: '总经验值',
                                         areaStyle: { color: 'rgba(168, 85, 247, 0.4)' },
                                         lineStyle: { color: '#a855f7', width: 2 },
                                         itemStyle: { color: '#a855f7' }
                                     }]
                                 }]
-                            }, true);
-
-                        } else {
-                            // 🏃‍♂️ 平板与跑步：渲染折线图
-                            const typeRecords = myRecords.filter(r => r.activity_type === activeTab.value).slice(0, 7).reverse();
-                            if (typeRecords.length === 0) { 
-                                chartInstance.setOption({ title: { text: '暂无数据', left: 'center', top: 'middle', textStyle: { color: '#999', fontSize: 14 } }, series: [] }, true); 
-                                return; 
-                            }
-                            const dates = typeRecords.map(r => { const d = new Date(r.record_date); return `${d.getMonth() + 1}/${d.getDate()}`; });
-                            const data = typeRecords.map(r => activeTab.value === 'plank' ? r.duration_seconds : r.distance);
-                            const themeColor = activeTab.value === 'plank' ? '#3b82f6' : '#22c55e';
-                            
-                            chartInstance.setOption({
-                                tooltip: { trigger: 'axis' },
-                                grid: { left: '12%', right: '5%', top: '15%', bottom: '15%' },
-                                xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#eee' } } },
-                                yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
-                                series: [{ data: data, type: 'line', smooth: true, itemStyle: { color: themeColor },
-                                    areaStyle: {
-                                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                            { offset: 0, color: themeColor + '55' }, { offset: 1, color: themeColor + '00' }
-                                        ])
-                                    }
-                                }]
-                            }, true);
+                            });
+                            radarChart.resize();
                         }
-                        chartInstance.resize();
+
+                        // 2. 绘制专属折线图 (仅平板/跑步)
+                        if (activeTab.value !== 'free' && lineChartRef.value && lineChartRef.value.offsetWidth > 0) {
+                            let lineChart = echarts.getInstanceByDom(lineChartRef.value) || echarts.init(lineChartRef.value);
+                            const typeRecords = myRecords.filter(r => r.activity_type === activeTab.value).slice(0, 7).reverse();
+                            
+                            if (typeRecords.length === 0) { 
+                                lineChart.setOption({ title: { text: '暂无折线数据', left: 'center', top: 'middle', textStyle: { color: '#999', fontSize: 14 } }, series: [] }, true); 
+                            } else {
+                                const dates = typeRecords.map(r => { const d = new Date(r.record_date); return `${d.getMonth() + 1}/${d.getDate()}`; });
+                                const data = typeRecords.map(r => activeTab.value === 'plank' ? r.duration_seconds : r.distance);
+                                const themeColor = activeTab.value === 'plank' ? '#3b82f6' : '#22c55e';
+                                
+                                lineChart.setOption({
+                                    tooltip: { trigger: 'axis' },
+                                    grid: { left: '12%', right: '5%', top: '15%', bottom: '15%' },
+                                    xAxis: { type: 'category', data: dates, axisLine: { lineStyle: { color: '#eee' } } },
+                                    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
+                                    series: [{ data: data, type: 'line', smooth: true, itemStyle: { color: themeColor },
+                                        areaStyle: {
+                                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                                { offset: 0, color: themeColor + '55' }, { offset: 1, color: themeColor + '00' }
+                                            ])
+                                        }
+                                    }]
+                                }, true);
+                            }
+                            lineChart.resize();
+                        }
                     }, 100);
                 }
 
@@ -416,7 +387,7 @@
                 const getRankEmoji = (i) => i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
 
                 return {
-                    token, currentUser, records, leaderboard, errorMessage, regForm, isLoginMode, currentLeaderboardType, personalBest, chartRef,
+                    token, currentUser, records, leaderboard, errorMessage, regForm, isLoginMode, currentLeaderboardType, personalBest, chartRef, radarChartRef, lineChartRef,
                     activeTab, commonNotes, plankForm, runForm, freeForm, toggleMode, handleAuth, logout, submitRecord, deleteRecord, formatTime, likeRecord, isLikedByMe,
                     getRankClass, getRankIconBg, getRankEmoji,
                     timerSeconds, isTimerRunning, displayTimer, startTimer, pauseTimer, resetTimer, useTimerResult
