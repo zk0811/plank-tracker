@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>运动全能王</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
     <style>
@@ -24,6 +24,18 @@
     </style>
 </head>
 <body>
+    <div id="crash-log" style="display:none; position:fixed; top:0; left:0; right:0; background:#fef2f2; color:#991b1b; padding:20px; z-index:9999; font-family:monospace; font-size:13px; white-space:pre-wrap; border-bottom: 2px solid #dc2626;"></div>
+    <script>
+        window.onerror = function(msg, src, lineno) {
+            document.getElementById('crash-log').style.display = 'block';
+            document.getElementById('crash-log').innerText += '💥 前端报错:\n' + msg + '\n位置: 第 ' + lineno + ' 行\n\n';
+        };
+        window.onunhandledrejection = function(e) {
+            document.getElementById('crash-log').style.display = 'block';
+            document.getElementById('crash-log').innerText += '💥 网络/异步报错:\n' + (e.reason && e.reason.message ? e.reason.message : e.reason) + '\n\n';
+        };
+    </script>
+
     <div id="app" class="app-container relative pb-10">
         <div :class="activeTab === 'plank' ? 'bg-blue-600' : (activeTab === 'run' ? 'bg-green-500' : 'bg-purple-600')" class="h-2 w-full theme-transition"></div>
 
@@ -185,11 +197,8 @@
             setup() {
                 const token = ref(localStorage.getItem('plank_token') || null)
                 
-                // 🌟 防弹夹修复：防止本地数据损坏导致整个网页崩溃白屏
                 let savedUser = null;
-                try { 
-                    savedUser = JSON.parse(localStorage.getItem('plank_user')); 
-                } catch(e) {}
+                try { savedUser = JSON.parse(localStorage.getItem('plank_user')); } catch(e) {}
                 const currentUser = ref(savedUser || null)
 
                 const isLoginMode = ref(true)
@@ -205,7 +214,6 @@
                 const leaderboard = ref([])
                 const currentLeaderboardType = ref('7')
                 
-                // 两个图表的独立引用
                 const radarChartRef = ref(null)
                 const lineChartRef = ref(null)
 
@@ -230,13 +238,11 @@
 
                 const setupAxios = () => { if (token.value) axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`; }
 
-                // 🌟 双开图表渲染逻辑
                 const renderChart = () => {
                     setTimeout(() => {
                         if (!currentUser.value) return;
                         const myRecords = records.value.filter(r => Number(r.user_id) === Number(currentUser.value.id));
 
-                        // 1. 绘制全局雷达图
                         if (radarChartRef.value && radarChartRef.value.offsetWidth > 0) {
                             let radarChart = echarts.getInstanceByDom(radarChartRef.value) || echarts.init(radarChartRef.value);
                             const recent = myRecords.slice(0, 30);
@@ -246,10 +252,8 @@
                                 tooltip: { trigger: 'item' },
                                 radar: {
                                     indicator: [
-                                        { name: '推力', max: 500 },
-                                        { name: '底盘', max: 500 },
-                                        { name: '核心', max: 500 },
-                                        { name: '心肺', max: 500 },
+                                        { name: '推力', max: 500 }, { name: '底盘', max: 500 },
+                                        { name: '核心', max: 500 }, { name: '心肺', max: 500 },
                                         { name: '自律', max: 500 }
                                     ],
                                     shape: 'polygon', splitNumber: 5,
@@ -270,7 +274,6 @@
                             radarChart.resize();
                         }
 
-                        // 2. 绘制专属折线图 (仅平板/跑步)
                         if (activeTab.value !== 'free' && lineChartRef.value && lineChartRef.value.offsetWidth > 0) {
                             let lineChart = echarts.getInstanceByDom(lineChartRef.value) || echarts.init(lineChartRef.value);
                             const typeRecords = myRecords.filter(r => r.activity_type === activeTab.value).slice(0, 7).reverse();
@@ -375,16 +378,13 @@
                         record.likes.push({ user: { username: currentUser.value.username } });
                     }
                     
-                    axios.post(`${API_BASE}/records/${id}/like`).catch(error => {
-                        console.error('点赞同步失败', error);
-                        fetchData(); 
-                    });
+                    axios.post(`${API_BASE}/records/${id}/like`).catch(error => { console.error(error); fetchData(); });
                 }
 
                 const handleAuth = async () => { try { const res = await axios.post(`${API_BASE}${isLoginMode.value ? '/users/login' : '/users/register'}`, regForm.value); token.value = res.data.access_token; currentUser.value = res.data.user; localStorage.setItem('plank_token', token.value); localStorage.setItem('plank_user', JSON.stringify(currentUser.value)); location.reload(); } catch (e) { errorMessage.value = '错误'; } }
                 const logout = () => { localStorage.clear(); location.reload(); }
-                const toggleMode = () => isLoginMode.value = !isLoginMode.value
                 const formatTime = (dateStr) => { 
+                    if(!dateStr) return '';
                     const utcTime = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
                     const bjTime = new Date(utcTime.getTime() + 28800000);
                     return `${bjTime.getUTCMonth() + 1}/${bjTime.getUTCDate()} ${String(bjTime.getUTCHours()).padStart(2, '0')}:${String(bjTime.getUTCMinutes()).padStart(2, '0')}`; 
@@ -393,7 +393,6 @@
                 const getRankIconBg = (i) => i===0?'bg-fbbf24':i===1?'bg-slate-300':i===2?'bg-orange-600':'bg-gray-50';
                 const getRankEmoji = (i) => i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
 
-                // 🌟 核心修复点：将多余的 chartRef 从 return 中彻底移除！
                 return {
                     token, currentUser, records, leaderboard, errorMessage, regForm, isLoginMode, currentLeaderboardType, personalBest, radarChartRef, lineChartRef,
                     activeTab, commonNotes, plankForm, runForm, freeForm, toggleMode, handleAuth, logout, submitRecord, deleteRecord, formatTime, likeRecord, isLikedByMe,
