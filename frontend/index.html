@@ -72,7 +72,7 @@
 
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                     <h3 class="font-bold text-gray-700 mb-4 text-sm tracking-wide">
-                        {{ activeTab === 'free' ? '📊 近期健身五维能力' : (activeTab === 'plank' ? '📈 近期支撑时长' : '📈 近期跑步里程') }}
+                        {{ activeTab === 'free' ? '📊 近期健身五维战力 (长期积累)' : (activeTab === 'plank' ? '📈 近期支撑时长' : '📈 近期跑步里程') }}
                     </h3>
                     <div id="chart-container" ref="chartRef" style="height: 220px;"></div>
                 </div>
@@ -99,7 +99,7 @@
                     </h3>
 
                     <template v-if="activeTab === 'free'">
-                        <input v-model="freeForm.action" type="text" class="w-full px-4 py-3 border border-gray-200 bg-gray-50 rounded-xl mb-3 outline-none text-lg font-bold" placeholder="做什么？(如: 俯卧撑、引体向上)">
+                        <input v-model="freeForm.action" type="text" class="w-full px-4 py-3 border border-gray-200 bg-gray-50 rounded-xl mb-3 outline-none text-lg font-bold" placeholder="做什么？(如: 俯卧撑、去健身房练胸)">
                         <div class="flex items-center mb-3 bg-gray-50 rounded-xl overflow-hidden border border-gray-200">
                             <input v-model="freeForm.quantity" type="number" class="flex-1 px-4 py-3 text-2xl font-black text-center bg-transparent outline-none" placeholder="数量 (选填)">
                             <span class="text-gray-400 font-bold pr-4">次/组</span>
@@ -246,16 +246,18 @@
                         if (!chartInstance) {
                             chartInstance = echarts.init(container);
                         } else {
-                            // 🌟 关键：清空之前的画板，防止折线图和雷达图重叠残影
+                            // 清空之前的画板，防止折线图和雷达图重叠残影
                             chartInstance.clear(); 
                         }
                         
                         const myRecords = records.value.filter(r => Number(r.user_id) === Number(currentUser.value.id));
 
                         if (activeTab.value === 'free') {
-                            // 🚀 自由训练：渲染 5 维雷达图
-                            const recent = myRecords.slice(0, 15); // 取最近 15 次所有记录算平均分
-                            const avg = (key) => recent.length ? Math.round(recent.reduce((s, r) => s + (r[key] || 0), 0) / recent.length) : 0;
+                            // 🚀 核心大改：从“求平均”变成“RPG 经验值累加”
+                            const recent = myRecords.slice(0, 30); // 提取最近 30 次打卡作为经验池
+                            
+                            // reduce 累加求和，不再除以 length
+                            const sum = (key) => recent.reduce((s, r) => s + (r[key] || 0), 0);
 
                             if (recent.length === 0) { 
                                 chartInstance.setOption({ title: { text: '暂无数据，快去开练！', left: 'center', top: 'middle', textStyle: { color: '#999', fontSize: 14 } }, series: [] }, true); 
@@ -266,14 +268,15 @@
                                 tooltip: { trigger: 'item' },
                                 radar: {
                                     indicator: [
-                                        { name: '推力(上肢)', max: 100 },
-                                        { name: '底盘(下肢)', max: 100 },
-                                        { name: '核心(腹部)', max: 100 },
-                                        { name: '引擎(心肺)', max: 100 },
-                                        { name: '意志(自律)', max: 100 }
+                                        // 🌟 雷达图容量扩充到 500！需要长期打卡才能拉满
+                                        { name: '推力(上肢)', max: 500 },
+                                        { name: '底盘(下肢)', max: 500 },
+                                        { name: '核心(腹部)', max: 500 },
+                                        { name: '引擎(心肺)', max: 500 },
+                                        { name: '意志(自律)', max: 500 }
                                     ],
                                     shape: 'polygon',
-                                    splitNumber: 4,
+                                    splitNumber: 5,
                                     axisName: { color: '#666', fontSize: 11, fontWeight: 'bold' },
                                     center: ['50%', '50%'],
                                     radius: '65%'
@@ -281,8 +284,9 @@
                                 series: [{
                                     type: 'radar',
                                     data: [{
-                                        value: [avg('upper'), avg('lower'), avg('core'), avg('cardio'), avg('discipline')],
-                                        name: '综合实力',
+                                        // 🌟 填入累加后的总分
+                                        value: [sum('upper'), sum('lower'), sum('core'), sum('cardio'), sum('discipline')],
+                                        name: '近期综合战力',
                                         areaStyle: { color: 'rgba(168, 85, 247, 0.4)' },
                                         lineStyle: { color: '#a855f7', width: 2 },
                                         itemStyle: { color: '#a855f7' }
