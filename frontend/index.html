@@ -184,7 +184,14 @@
         createApp({
             setup() {
                 const token = ref(localStorage.getItem('plank_token') || null)
-                const currentUser = ref(JSON.parse(localStorage.getItem('plank_user') || 'null'))
+                
+                // 🌟 防弹夹修复：防止本地数据损坏导致整个网页崩溃白屏
+                let savedUser = null;
+                try { 
+                    savedUser = JSON.parse(localStorage.getItem('plank_user')); 
+                } catch(e) {}
+                const currentUser = ref(savedUser || null)
+
                 const isLoginMode = ref(true)
                 const errorMessage = ref('')
                 const regForm = ref({ username: '', password: '' })
@@ -386,8 +393,9 @@
                 const getRankIconBg = (i) => i===0?'bg-fbbf24':i===1?'bg-slate-300':i===2?'bg-orange-600':'bg-gray-50';
                 const getRankEmoji = (i) => i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
 
+                // 🌟 核心修复点：将多余的 chartRef 从 return 中彻底移除！
                 return {
-                    token, currentUser, records, leaderboard, errorMessage, regForm, isLoginMode, currentLeaderboardType, personalBest, chartRef, radarChartRef, lineChartRef,
+                    token, currentUser, records, leaderboard, errorMessage, regForm, isLoginMode, currentLeaderboardType, personalBest, radarChartRef, lineChartRef,
                     activeTab, commonNotes, plankForm, runForm, freeForm, toggleMode, handleAuth, logout, submitRecord, deleteRecord, formatTime, likeRecord, isLikedByMe,
                     getRankClass, getRankIconBg, getRankEmoji,
                     timerSeconds, isTimerRunning, displayTimer, startTimer, pauseTimer, resetTimer, useTimerResult
