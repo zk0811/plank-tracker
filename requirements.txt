@@ -7,3 +7,5 @@ passlib
 bcrypt
 psycopg2-binary
 zhipuai
+sniffio
+httpx
