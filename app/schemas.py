@@ -29,12 +29,12 @@ class RecordResponse(RecordBase):
     # 🌟 核心改动：把 likes 从 int 改成了点赞对象的列表！
     likes: List[LikeResponse] = []
     
-    # 🌟 核心新增：雷达图的 5 个维度分数 (设置默认值 0 完美兼容旧数据)
-    upper: int = 0
-    lower: int = 0
-    core: int = 0
-    cardio: int = 0
-    discipline: int = 0
+    # 🌟 终极防弹修改：加上 Optional！允许数据库里有空值，如果没有就默认为 0，完美兼容老数据！
+    upper: Optional[int] = 0
+    lower: Optional[int] = 0
+    core: Optional[int] = 0
+    cardio: Optional[int] = 0
+    discipline: Optional[int] = 0
 
     class Config:
         from_attributes = True
