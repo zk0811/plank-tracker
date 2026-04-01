@@ -35,6 +35,12 @@ class Record(Base):
     owner = relationship("User", back_populates="records")
     likes = relationship("Like", back_populates="record", cascade="all, delete-orphan")
 
+    upper = Column(Integer, default=0)      # 上肢
+    lower = Column(Integer, default=0)      # 下肢
+    core = Column(Integer, default=0)       # 核心
+    cardio = Column(Integer, default=0)     # 心肺
+    discipline = Column(Integer, default=0)  # 自律
+
 
 # ... 后面的 Like 类保持不变 ...
 # 🌟 全新引入：点赞关系表
