@@ -3,12 +3,50 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List
 from datetime import datetime, timedelta
+import json
+from zhipuai import ZhipuAI  # 🌟 新增：引入智谱 AI
 
 from .. import models, schemas
 from ..database import get_db
 from ..auth import get_current_user  # 统一引入解析当前用户的依赖
 
 router = APIRouter(prefix="/records", tags=["Records"])
+
+# 🌟 新增：初始化 AI 教练 (请务必把你的真实 Key 填在下面)
+client = ZhipuAI(api_key=a31f7b3b6d73434d8ce69b63411f7313.7bfBGcxsSeAwWRqh)
+
+# 🌟 新增：AI 裁判打分核心系统 (暂未接入路由，先随服务器部署测试环境)
+def get_ai_scores(user_input: str, streak_days: int):
+    prompt = f"""
+    你是一个专业的健身教练。请分析用户的打卡记录并给出0-100的分数。
+    打卡内容: "{user_input}"
+    用户已连续打卡: {streak_days} 天
+    
+    请根据动作强度打分：
+    - upper (上肢力量): 俯卧撑、引体向上、练胸背肩等
+    - lower (下肢力量): 跑步、深蹲等
+    - core (核心力量): 平板支撑、俯卧撑辅助等
+    - cardio (心肺耐力): 跑步、高频自由动作等
+    - discipline (自律): 根据连续天数计算，1天20分，5天100分。
+    
+    只需返回 JSON 格式，不要任何解释，格式如下:
+    {{"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": 0}}
+    """
+    
+    try:
+        response = client.chat.completions.create(
+            model="glm-4-flash", # 免费模型
+            messages=[{"role": "user", "content": prompt}],
+        )
+        # 解析 AI 返回的 JSON
+        res_text = response.choices[0].message.content
+        # 处理可能包含的 markdown 代码块符号 (比如 ```json ... ```)
+        res_text = res_text.replace('```json', '').replace('```', '').strip()
+        return json.loads(res_text)
+    except Exception as e:
+        # 如果 AI 挂了或者解析失败，给个保底分
+        print(f"AI 解析失败: {e}")
+        return {"upper": 0, "lower": 0, "core": 0, "cardio": 0, "discipline": min(streak_days * 20, 100)}
 
 
 # 🌟 1. 创建打卡记录 (兼容平板、跑步、自由训练)
