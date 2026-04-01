@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>运动全能王</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
     <style>
@@ -242,7 +242,8 @@
                                 tooltip: { trigger: 'item' },
                                 radar: {
                                     indicator: [
-                                        { name: '推力', max: 500 }, { name: '底盘', max: 500 },
+                                        // 🌟 完美替换：上肢、下肢
+                                        { name: '上肢', max: 500 }, { name: '下肢', max: 500 },
                                         { name: '核心', max: 500 }, { name: '心肺', max: 500 },
                                         { name: '自律', max: 500 }
                                     ],
@@ -394,7 +395,6 @@
             }
         });
         
-        // 🌟 将 Vue 的内部错误抛出到我们的红框显示器上！
         app.config.errorHandler = (err) => {
             const logDiv = document.getElementById('crash-log');
             if(logDiv) {
