@@ -54,7 +54,10 @@
             <div v-else class="space-y-6">
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
                     <div>
-                        <p class="text-gray-500 text-sm">你好，<span class="font-bold text-gray-900 text-base">{{ currentUser?.username || '运动达人' }}</span></p>
+                        <p class="text-gray-500 text-sm flex items-center">
+                            你好，<span class="font-bold text-gray-900 text-base">{{ currentUser?.username || '运动达人' }}</span>
+                            <span class="bg-gradient-to-r from-purple-500 to-purple-700 text-white text-[10px] px-1.5 py-0.5 rounded font-black italic shadow-sm ml-1.5 border border-purple-800">Lv.{{ getUserLevelByName(currentUser?.username) }}</span>
+                        </p>
                         <p v-if="activeTab !== 'free'" :class="activeTab === 'plank' ? 'text-blue-600 bg-blue-50' : 'text-green-600 bg-green-50'" class="text-xs font-bold mt-1 inline-block px-2 py-0.5 rounded">
                             个人最高: {{ personalBest }} {{ activeTab === 'plank' ? 's' : 'km' }}
                         </p>
@@ -63,7 +66,8 @@
                 </div>
 
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                    <h3 class="font-bold text-gray-700 mb-2 text-sm tracking-wide text-center">🌟 个人综合战力 (EXP)</h3>
+                    <h3 class="font-bold text-gray-700 mb-2 text-sm tracking-wide text-center">🌟 当前等级战力 <span class="text-purple-600 font-black">Lv.{{ getUserLevelByName(currentUser?.username) }}</span></h3>
+                    <p class="text-center text-[10px] text-gray-400 mb-1">木桶效应：最短板决定你的等级上限</p>
                     <div id="radar-chart-container" ref="radarChartRef" style="height: 240px; width: 100%;"></div>
                 </div>
 
@@ -140,7 +144,10 @@
                                 <span v-if="index > 2" class="text-gray-400 font-bold">#{{ index + 1 }}</span>
                                 <span v-else class="text-2xl">{{ getRankEmoji(index) }}</span>
                             </div>
-                            <p class="flex-1 text-lg font-bold text-gray-800">{{ entry?.username || '神秘人' }}</p>
+                            <p class="flex-1 text-lg font-bold text-gray-800 flex items-center">
+                                {{ entry?.username || '神秘人' }}
+                                <span class="bg-gradient-to-r from-purple-500 to-purple-700 text-white text-[10px] px-1.5 py-0.5 rounded font-black italic shadow-sm ml-1.5 border border-purple-800">Lv.{{ getUserLevelByName(entry?.username) }}</span>
+                            </p>
                             <div class="text-right text-2xl font-black">
                                 {{ entry?.max_value || entry?.current_streak || 0 }}
                                 <span class="text-xs font-normal text-gray-400 ml-1">{{ currentLeaderboardType === 'streak' ? '天' : (activeTab === 'plank' ? 's' : 'km') }}</span>
@@ -155,8 +162,9 @@
                         <div v-for="record in records" :key="record?.id" class="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex flex-col gap-2">
                             
                             <div class="flex items-center justify-between">
-                                <span class="font-bold text-gray-800 text-sm">
+                                <span class="font-bold text-gray-800 text-sm flex items-center">
                                     {{ record?.activity_type === 'plank' ? '💪' : (record?.activity_type === 'run' ? '🏃‍♂️' : '🏋️‍♂️') }} {{ record?.owner?.username || '神秘人' }}
+                                    <span class="bg-gradient-to-r from-purple-500 to-purple-700 text-white text-[10px] px-1.5 py-0.5 rounded font-black italic shadow-sm ml-1.5 border border-purple-800">Lv.{{ getUserLevelByName(record?.owner?.username) }}</span>
                                 </span>
                                 <span v-if="record?.activity_type === 'free'" class="font-black text-purple-600">
                                     {{ record?.notes }} <span v-if="record?.duration_seconds > 0" class="text-xs text-gray-400">({{ record?.duration_seconds }}次)</span>
@@ -238,6 +246,19 @@
 
                 const setupAxios = () => { if (token.value) axios.defaults.headers.common['Authorization'] = `Bearer ${token.value}`; }
 
+                // 🌟 核心：计算任何用户的真实等级！
+                const getUserLevelByName = (username) => {
+                    if (!username) return 1;
+                    const userRecords = records.value.filter(r => r?.owner?.username === username);
+                    let u = 0, l = 0, c = 0, ca = 0, d = 0;
+                    userRecords.forEach(r => {
+                        u += r.upper || 0; l += r.lower || 0; c += r.core || 0; ca += r.cardio || 0; d += r.discipline || 0;
+                    });
+                    // 木桶效应：最短的板决定你能溢出重置多少次 (完成多少圈 500)
+                    const completedLaps = Math.floor(Math.min(u, l, c, ca, d) / 500);
+                    return completedLaps + 1; // 初始为 1 级
+                };
+
                 const renderChart = () => {
                     setTimeout(() => {
                         if (!currentUser.value) return;
@@ -245,8 +266,22 @@
 
                         if (radarChartRef.value && radarChartRef.value.offsetWidth > 0) {
                             let radarChart = echarts.getInstanceByDom(radarChartRef.value) || echarts.init(radarChartRef.value);
-                            const recent = myRecords.slice(0, 30);
-                            const sum = (key) => recent.reduce((s, r) => s + (r[key] || 0), 0);
+                            
+                            // 🌟 核心改动：不再只取前 30 条，而是算人生的所有积累！
+                            let u = 0, l = 0, c = 0, ca = 0, d = 0;
+                            myRecords.forEach(r => {
+                                u += r.upper || 0; l += r.lower || 0; c += r.core || 0; ca += r.cardio || 0; d += r.discipline || 0;
+                            });
+
+                            // 计算已完成的圈数（等级-1）
+                            const completedLaps = Math.floor(Math.min(u, l, c, ca, d) / 500);
+
+                            // 扣除溢出的分数，实现“升级清零，重塑金身”
+                            const displayU = u - completedLaps * 500;
+                            const displayL = l - completedLaps * 500;
+                            const displayC = c - completedLaps * 500;
+                            const displayCa = ca - completedLaps * 500;
+                            const displayD = d - completedLaps * 500;
 
                             radarChart.setOption({
                                 tooltip: { trigger: 'item' },
@@ -263,8 +298,8 @@
                                 series: [{
                                     type: 'radar',
                                     data: [{
-                                        value: [sum('upper'), sum('lower'), sum('core'), sum('cardio'), sum('discipline')],
-                                        name: '总经验值',
+                                        value: [displayU, displayL, displayC, displayCa, displayD],
+                                        name: `Lv.${completedLaps + 1} 经验值`,
                                         areaStyle: { color: 'rgba(168, 85, 247, 0.4)' },
                                         lineStyle: { color: '#a855f7', width: 2 },
                                         itemStyle: { color: '#a855f7' }
@@ -399,7 +434,8 @@
                     token, currentUser, records, leaderboard, errorMessage, regForm, isLoginMode, currentLeaderboardType, personalBest, radarChartRef, lineChartRef,
                     activeTab, commonNotes, plankForm, runForm, freeForm, toggleMode, handleAuth, logout, submitRecord, deleteRecord, formatTime, likeRecord, isLikedByMe,
                     getRankClass, getRankIconBg, getRankEmoji,
-                    timerSeconds, isTimerRunning, displayTimer, startTimer, pauseTimer, resetTimer, useTimerResult
+                    timerSeconds, isTimerRunning, displayTimer, startTimer, pauseTimer, resetTimer, useTimerResult,
+                    getUserLevelByName // 暴露给模板使用
                 }
             }
         });
