@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>运动全能王</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.8/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
     <style>
@@ -24,17 +24,7 @@
     </style>
 </head>
 <body>
-    <div id="crash-log" style="display:none; position:fixed; top:0; left:0; right:0; background:#fef2f2; color:#991b1b; padding:20px; z-index:9999; font-family:monospace; font-size:13px; white-space:pre-wrap; border-bottom: 2px solid #dc2626;"></div>
-    <script>
-        window.onerror = function(msg, src, lineno) {
-            document.getElementById('crash-log').style.display = 'block';
-            document.getElementById('crash-log').innerText += '💥 前端报错:\n' + msg + '\n位置: 第 ' + lineno + ' 行\n\n';
-        };
-        window.onunhandledrejection = function(e) {
-            document.getElementById('crash-log').style.display = 'block';
-            document.getElementById('crash-log').innerText += '💥 网络/异步报错:\n' + (e.reason && e.reason.message ? e.reason.message : e.reason) + '\n\n';
-        };
-    </script>
+    <div id="crash-log" style="display:none; position:fixed; top:0; left:0; right:0; background:#fef2f2; color:#991b1b; padding:20px; z-index:9999; font-family:monospace; font-size:13px; white-space:pre-wrap; border-bottom: 2px solid #dc2626; max-height: 300px; overflow-y: auto;"></div>
 
     <div id="app" class="app-container relative pb-10">
         <div :class="activeTab === 'plank' ? 'bg-blue-600' : (activeTab === 'run' ? 'bg-green-500' : 'bg-purple-600')" class="h-2 w-full theme-transition"></div>
@@ -64,7 +54,7 @@
             <div v-else class="space-y-6">
                 <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
                     <div>
-                        <p class="text-gray-500 text-sm">你好，<span class="font-bold text-gray-900 text-base">{{ currentUser?.username }}</span></p>
+                        <p class="text-gray-500 text-sm">你好，<span class="font-bold text-gray-900 text-base">{{ currentUser?.username || '运动达人' }}</span></p>
                         <p v-if="activeTab !== 'free'" :class="activeTab === 'plank' ? 'text-blue-600 bg-blue-50' : 'text-green-600 bg-green-50'" class="text-xs font-bold mt-1 inline-block px-2 py-0.5 rounded">
                             个人最高: {{ personalBest }} {{ activeTab === 'plank' ? 's' : 'km' }}
                         </p>
@@ -150,9 +140,9 @@
                                 <span v-if="index > 2" class="text-gray-400 font-bold">#{{ index + 1 }}</span>
                                 <span v-else class="text-2xl">{{ getRankEmoji(index) }}</span>
                             </div>
-                            <p class="flex-1 text-lg font-bold text-gray-800">{{ entry.username }}</p>
+                            <p class="flex-1 text-lg font-bold text-gray-800">{{ entry?.username || '神秘人' }}</p>
                             <div class="text-right text-2xl font-black">
-                                {{ entry.max_value || entry.current_streak }}
+                                {{ entry?.max_value || entry?.current_streak || 0 }}
                                 <span class="text-xs font-normal text-gray-400 ml-1">{{ currentLeaderboardType === 'streak' ? '天' : (activeTab === 'plank' ? 's' : 'km') }}</span>
                             </div>
                         </div>
@@ -162,23 +152,23 @@
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mt-4 mb-10">
                     <h3 class="font-bold text-gray-800 mb-4 text-sm">📡 全频道动态</h3>
                     <div class="space-y-4 max-h-96 overflow-y-auto pr-1">
-                        <div v-for="record in records" :key="record.id" class="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex flex-col gap-2">
+                        <div v-for="record in records" :key="record?.id" class="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex flex-col gap-2">
                             <div class="flex items-center justify-between">
                                 <span class="font-bold text-gray-800 text-sm">
-                                    {{ record.activity_type === 'plank' ? '💪' : (record.activity_type === 'run' ? '🏃‍♂️' : '🏋️‍♂️') }} {{ record.owner.username }}
+                                    {{ record?.activity_type === 'plank' ? '💪' : (record?.activity_type === 'run' ? '🏃‍♂️' : '🏋️‍♂️') }} {{ record?.owner?.username || '神秘人' }}
                                 </span>
-                                <span v-if="record.activity_type === 'free'" class="font-black text-purple-600">
-                                    {{ record.notes }} <span v-if="record.duration_seconds > 0" class="text-xs text-gray-400">({{ record.duration_seconds }}次)</span>
+                                <span v-if="record?.activity_type === 'free'" class="font-black text-purple-600">
+                                    {{ record?.notes }} <span v-if="record?.duration_seconds > 0" class="text-xs text-gray-400">({{ record?.duration_seconds }}次)</span>
                                 </span>
-                                <span v-else-if="record.activity_type === 'plank'" class="font-mono font-black text-blue-600">{{ record.duration_seconds }}s</span>
-                                <span v-else class="font-mono font-black text-green-600">{{ record.distance }} km</span>
+                                <span v-else-if="record?.activity_type === 'plank'" class="font-mono font-black text-blue-600">{{ record?.duration_seconds }}s</span>
+                                <span v-else class="font-mono font-black text-green-600">{{ record?.distance }} km</span>
                             </div>
                             <div class="flex justify-between items-center text-xs text-gray-400 mt-1">
-                                <span>{{ (record.activity_type === 'free' ? '自由开练' : (record.notes || '沉默打卡')) }} · {{ formatTime(record.record_date) }}</span>
+                                <span>{{ (record?.activity_type === 'free' ? '自由开练' : (record?.notes || '沉默打卡')) }} · {{ formatTime(record?.record_date) }}</span>
                                 <div class="flex items-center gap-2">
-                                    <button v-if="record.user_id === currentUser?.id" @click="deleteRecord(record.id)" class="text-gray-300 hover:text-red-500 transition px-2 py-1">🗑️</button>
+                                    <button v-if="record?.user_id === currentUser?.id" @click="deleteRecord(record.id)" class="text-gray-300 hover:text-red-500 transition px-2 py-1">🗑️</button>
                                     <button @click="likeRecord(record.id)" class="flex items-center gap-1.5 transition px-3 py-1.5 rounded-full border bg-white" :class="isLikedByMe(record) ? 'text-red-500 border-red-100 like-animate' : 'text-gray-300 border-gray-100'">
-                                        <span>{{ isLikedByMe(record) ? '❤️' : '🤍' }}</span><span class="font-bold">{{ record.likes.length }}</span>
+                                        <span>{{ isLikedByMe(record) ? '❤️' : '🤍' }}</span><span class="font-bold">{{ record?.likes?.length || 0 }}</span>
                                     </button>
                                 </div>
                             </div>
@@ -193,7 +183,7 @@
         const { createApp, ref, computed, onMounted, watch, onUnmounted } = Vue
         const API_BASE = window.location.origin
 
-        createApp({
+        const app = createApp({
             setup() {
                 const token = ref(localStorage.getItem('plank_token') || null)
                 
@@ -241,7 +231,7 @@
                 const renderChart = () => {
                     setTimeout(() => {
                         if (!currentUser.value) return;
-                        const myRecords = records.value.filter(r => Number(r.user_id) === Number(currentUser.value.id));
+                        const myRecords = records.value.filter(r => Number(r?.user_id) === Number(currentUser.value.id));
 
                         if (radarChartRef.value && radarChartRef.value.offsetWidth > 0) {
                             let radarChart = echarts.getInstanceByDom(radarChartRef.value) || echarts.init(radarChartRef.value);
@@ -306,9 +296,9 @@
 
                 const personalBest = computed(() => {
                     if (!currentUser.value || activeTab.value === 'free') return 0;
-                    const myRecords = records.value.filter(r => r.user_id === currentUser.value.id && r.activity_type === activeTab.value);
+                    const myRecords = records.value.filter(r => r?.user_id === currentUser.value.id && r?.activity_type === activeTab.value);
                     if (myRecords.length === 0) return 0;
-                    return activeTab.value === 'plank' ? Math.max(...myRecords.map(r => r.duration_seconds)) : Math.max(...myRecords.map(r => r.distance));
+                    return activeTab.value === 'plank' ? Math.max(...myRecords.map(r => r.duration_seconds || 0)) : Math.max(...myRecords.map(r => r.distance || 0));
                 })
 
                 const fetchData = async () => {
@@ -319,8 +309,8 @@
                             axios.get(`${API_BASE}/records/`),
                             activeTab.value !== 'free' ? axios.get(`${API_BASE}/records/${currentLeaderboardType.value === 'streak' ? 'streaks/'+activeTab.value : 'leaderboard/'+activeTab.value+'/'+currentLeaderboardType.value}`) : Promise.resolve({data:[]})
                         ]);
-                        records.value = resRec.data;
-                        leaderboard.value = resLead.data;
+                        records.value = resRec.data || [];
+                        leaderboard.value = resLead.data || [];
                         renderChart();
                     } catch (e) { if (e.response?.status === 401) logout(); }
                 }
@@ -364,7 +354,7 @@
                     try { await axios.delete(`${API_BASE}/records/${id}`); fetchData(); } catch (e) { alert('失败'); }
                 }
 
-                const isLikedByMe = (record) => record.likes && record.likes.some(like => like.user.username === currentUser.value?.username);
+                const isLikedByMe = (record) => record?.likes && record.likes.some(like => like?.user?.username === currentUser.value?.username);
                 
                 const likeRecord = async (id) => { 
                     if (!currentUser.value) return; 
@@ -373,8 +363,9 @@
                     
                     const currentlyLiked = isLikedByMe(record);
                     if (currentlyLiked) {
-                        record.likes = record.likes.filter(like => like.user.username !== currentUser.value.username);
+                        record.likes = record.likes.filter(like => like?.user?.username !== currentUser.value.username);
                     } else {
+                        if(!record.likes) record.likes = [];
                         record.likes.push({ user: { username: currentUser.value.username } });
                     }
                     
@@ -383,6 +374,7 @@
 
                 const handleAuth = async () => { try { const res = await axios.post(`${API_BASE}${isLoginMode.value ? '/users/login' : '/users/register'}`, regForm.value); token.value = res.data.access_token; currentUser.value = res.data.user; localStorage.setItem('plank_token', token.value); localStorage.setItem('plank_user', JSON.stringify(currentUser.value)); location.reload(); } catch (e) { errorMessage.value = '错误'; } }
                 const logout = () => { localStorage.clear(); location.reload(); }
+                const toggleMode = () => isLoginMode.value = !isLoginMode.value
                 const formatTime = (dateStr) => { 
                     if(!dateStr) return '';
                     const utcTime = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
@@ -400,7 +392,19 @@
                     timerSeconds, isTimerRunning, displayTimer, startTimer, pauseTimer, resetTimer, useTimerResult
                 }
             }
-        }).mount('#app')
+        });
+        
+        // 🌟 将 Vue 的内部错误抛出到我们的红框显示器上！
+        app.config.errorHandler = (err) => {
+            const logDiv = document.getElementById('crash-log');
+            if(logDiv) {
+                logDiv.style.display = 'block';
+                logDiv.innerText += '💥 Vue 渲染报错:\n' + err.message + '\n请截图发给开发人员！\n\n';
+            }
+            console.error(err);
+        };
+        
+        app.mount('#app');
     </script>
 </body>
 </html>
