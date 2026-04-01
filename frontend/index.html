@@ -153,6 +153,7 @@
                     <h3 class="font-bold text-gray-800 mb-4 text-sm">📡 全频道动态</h3>
                     <div class="space-y-4 max-h-96 overflow-y-auto pr-1">
                         <div v-for="record in records" :key="record?.id" class="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex flex-col gap-2">
+                            
                             <div class="flex items-center justify-between">
                                 <span class="font-bold text-gray-800 text-sm">
                                     {{ record?.activity_type === 'plank' ? '💪' : (record?.activity_type === 'run' ? '🏃‍♂️' : '🏋️‍♂️') }} {{ record?.owner?.username || '神秘人' }}
@@ -163,6 +164,7 @@
                                 <span v-else-if="record?.activity_type === 'plank'" class="font-mono font-black text-blue-600">{{ record?.duration_seconds }}s</span>
                                 <span v-else class="font-mono font-black text-green-600">{{ record?.distance }} km</span>
                             </div>
+                            
                             <div class="flex justify-between items-center text-xs text-gray-400 mt-1">
                                 <span>{{ (record?.activity_type === 'free' ? '自由开练' : (record?.notes || '沉默打卡')) }} · {{ formatTime(record?.record_date) }}</span>
                                 <div class="flex items-center gap-2">
@@ -172,6 +174,14 @@
                                     </button>
                                 </div>
                             </div>
+
+                            <div v-if="record?.likes && record.likes.length > 0" class="mt-2 bg-gray-100/80 rounded-lg p-2.5 text-xs text-gray-500 flex items-start gap-1.5">
+                                <span class="mt-0.5 text-red-400">❤️</span>
+                                <div class="flex-1 leading-relaxed">
+                                    <span class="font-medium text-gray-700">{{ record.likes.map(l => l?.user?.username).filter(Boolean).join(', ') }}</span> 觉得很赞
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -242,7 +252,6 @@
                                 tooltip: { trigger: 'item' },
                                 radar: {
                                     indicator: [
-                                        // 🌟 完美替换：上肢、下肢
                                         { name: '上肢', max: 500 }, { name: '下肢', max: 500 },
                                         { name: '核心', max: 500 }, { name: '心肺', max: 500 },
                                         { name: '自律', max: 500 }
